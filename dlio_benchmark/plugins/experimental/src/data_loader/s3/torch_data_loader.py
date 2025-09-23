@@ -201,12 +201,12 @@ class S3TorchDataLoader(BaseDataLoader):
             prefetch_factor = self._args.prefetch_size
         if prefetch_factor > 0:
             if self._args.my_rank == 0:
-                logging.debug(f"{utcnow()} Prefetch size is {self._args.prefetch_size}; prefetch factor of {prefetch_factor} will be set to Torch DataLoader.")
+                logging.info(f"{utcnow()} Prefetch size is {self._args.prefetch_size}; prefetch factor of {prefetch_factor} will be set to Torch DataLoader.")
         else:
             if self._args.my_rank == 0:
-                logging.debug(f"{utcnow()} Prefetch size is 0; a default prefetch factor of 2 will be set to Torch DataLoader.")
+                logging.info(f"{utcnow()} Prefetch size is 0; a default prefetch factor of 2 will be set to Torch DataLoader.")
 
-        logging.debug(f"{utcnow()} Setup dataloader with {self._args.read_threads} workers {torch.__version__}")
+        logging.info(f"{utcnow()} Setup dataloader with {self._args.read_threads} workers {torch.__version__}")
 
         self._dataloader = DataLoader(dataset,
                                 batch_size=batch_size,
@@ -217,7 +217,7 @@ class S3TorchDataLoader(BaseDataLoader):
                                 worker_init_fn=dataset.worker_init,
                                 prefetch_factor=prefetch_factor if prefetch_factor > 0 else 2)  # 2 is the default value
 
-        logging.debug(f"{utcnow()} Rank {self._args.my_rank} will read {len(self._dataloader) * batch_size} files")
+        logging.info(f"{utcnow()} Rank {self._args.my_rank} will read {len(self._dataloader) * batch_size} files")
 
     @dlp.log
     def next(self):
