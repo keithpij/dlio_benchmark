@@ -195,18 +195,18 @@ class S3TorchDataLoader(BaseDataLoader):
 
         sampler = dlio_sampler(self._args.my_rank, self._args.comm_size, self.num_samples, self._args.epochs)
 
-        if self._args.read_threads > 1:
-            prefetch_factor = math.ceil(self._args.prefetch_size / self._args.read_threads)
-        else:
-            prefetch_factor = self._args.prefetch_size
-        if prefetch_factor > 0:
-            if self._args.my_rank == 0:
-                logging.info(f"{utcnow()} Prefetch size is {self._args.prefetch_size}; prefetch factor of {prefetch_factor} will be set to Torch DataLoader.")
-        else:
-            if self._args.my_rank == 0:
-                logging.info(f"{utcnow()} Prefetch size is 0; a default prefetch factor of 2 will be set to Torch DataLoader.")
+        #if self._args.read_threads > 1:
+        #    prefetch_factor = math.ceil(self._args.prefetch_size / self._args.read_threads)
+        #else:
+        #    prefetch_factor = self._args.prefetch_size
+        #if prefetch_factor > 0:
+        #    if self._args.my_rank == 0:
+        #        logging.info(f"{utcnow()} Prefetch size is {self._args.prefetch_size}; prefetch factor of {prefetch_factor} will be set to Torch DataLoader.")
+        #else:
+        #    if self._args.my_rank == 0:
+        #        logging.info(f"{utcnow()} Prefetch size is 0; a default prefetch factor of 2 will be set to Torch DataLoader.")
 
-        logging.info(f"{utcnow()} Setup dataloader with {self._args.read_threads} workers {torch.__version__}")
+        logging.info(f"{utcnow()} Setting up rank {self._args.my_rank} dataloader with {self._args.read_threads} workers, prefetch: {self._args.prefetch_size}.")
 
         self._dataloader = DataLoader(dataset,
                                 batch_size=batch_size,
@@ -215,7 +215,7 @@ class S3TorchDataLoader(BaseDataLoader):
                                 pin_memory=True,
                                 drop_last=True,
                                 worker_init_fn=dataset.worker_init,
-                                prefetch_factor=prefetch_factor if prefetch_factor > 0 else 2)  # 2 is the default value
+                                prefetch_factor=self._args.prefetch_size) #prefetch_factor if prefetch_factor > 0 else 2)  # 2 is the default value
 
         logging.info(f"{utcnow()} Rank {self._args.my_rank} will read {len(self._dataloader) * batch_size} files")
 
