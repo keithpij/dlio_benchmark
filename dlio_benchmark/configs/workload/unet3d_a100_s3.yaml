@@ -20,7 +20,7 @@ dataset:
   record_length_bytes_resize: 2097152
   
 reader: 
-  data_loader_classname: dlio_benchmark.plugins.experimental.src.data_loader.s3.s3_torch_data_loader.S3TorchDataLoader
+  data_loader_classname: dlio_benchmark.plugins.experimental.src.data_loader.s3.torch_data_loader.S3TorchDataLoader
   data_loader_sampler: index # CHOOSE the correct sampler: iterative or index.
   data_loader: pytorch
   batch_size: 7
