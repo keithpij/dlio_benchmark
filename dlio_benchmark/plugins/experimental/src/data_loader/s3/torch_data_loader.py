@@ -215,6 +215,7 @@ class S3TorchDataLoader(BaseDataLoader):
                                 pin_memory=True,
                                 drop_last=True,
                                 worker_init_fn=dataset.worker_init,
+                                persistent_workers=True,
                                 prefetch_factor=self._args.prefetch_size) #prefetch_factor if prefetch_factor > 0 else 2)  # 2 is the default value
 
         logging.info(f"{utcnow()} Rank {self._args.my_rank} will read {len(self._dataloader) * batch_size} files")
