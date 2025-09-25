@@ -182,15 +182,17 @@ class S3TorchDataLoader(BaseDataLoader):
 
     @dlp.log
     def read(self):
-        num_samples = self._args.total_samples_train if self.dataset_type is DatasetType.TRAIN else self._args.total_samples_eval
-        batch_size = self._args.batch_size if self.dataset_type is DatasetType.TRAIN else self._args.batch_size_eval
 
         if DatasetType.TRAIN == self.dataset_type:
-            logging.info(f'{utcnow()} Rank {self._args.my_rank} reading training data list from bucket {BUCKET_NAME} with {num_samples} samples')
             object_list = get_object_list(BUCKET_NAME, 'train')
+            self._args.total_samples_train = len(object_list)
+            logging.info(f'{utcnow()} Rank {self._args.my_rank} reading training data list from bucket {BUCKET_NAME} with {num_samples} samples')
         else:
             logging.info(f'{utcnow()} Rank {self._args.my_rank} reading validation data list from bucket {BUCKET_NAME} with {num_samples} samples')
             object_list = get_object_list(BUCKET_NAME, 'valid')
+            self._args.total_samples_eval = len(object_list)
+        num_samples = self._args.total_samples_train if self.dataset_type is DatasetType.TRAIN else self._args.total_samples_eval
+        batch_size = self._args.batch_size if self.dataset_type is DatasetType.TRAIN else self._args.batch_size_eval
         dataset = S3TorchDataset(BUCKET_NAME, object_list, self.format_type, self.dataset_type, self.epoch_number, num_samples, self._args.read_threads, batch_size)
 
         sampler = dlio_sampler(self._args.my_rank, self._args.comm_size, self.num_samples, self._args.epochs)
