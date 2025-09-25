@@ -186,11 +186,12 @@ class S3TorchDataLoader(BaseDataLoader):
         if DatasetType.TRAIN == self.dataset_type:
             object_list = get_object_list(BUCKET_NAME, 'train')
             self._args.total_samples_train = len(object_list)
-            logging.info(f'{utcnow()} Rank {self._args.my_rank} reading training data list from bucket {BUCKET_NAME} with {num_samples} samples')
+            logging.info(f'{utcnow()} Rank {self._args.my_rank} reading training data list from bucket {BUCKET_NAME} with {self._args.total_samples_train} samples')
         else:
-            logging.info(f'{utcnow()} Rank {self._args.my_rank} reading validation data list from bucket {BUCKET_NAME} with {num_samples} samples')
             object_list = get_object_list(BUCKET_NAME, 'valid')
             self._args.total_samples_eval = len(object_list)
+            logging.info(f'{utcnow()} Rank {self._args.my_rank} reading validation data list from bucket {BUCKET_NAME} with {self._args.total_samples_eval} samples')
+
         num_samples = self._args.total_samples_train if self.dataset_type is DatasetType.TRAIN else self._args.total_samples_eval
         batch_size = self._args.batch_size if self.dataset_type is DatasetType.TRAIN else self._args.batch_size_eval
         dataset = S3TorchDataset(BUCKET_NAME, object_list, self.format_type, self.dataset_type, self.epoch_number, num_samples, self._args.read_threads, batch_size)
