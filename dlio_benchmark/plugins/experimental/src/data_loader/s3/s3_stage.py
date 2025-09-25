@@ -37,13 +37,14 @@ def put_folder(bucket_name: str, dataset_folder: str, split: str) -> int:
 
         count = 0
         samples_dir = os.path.join(dataset_folder, split)
-        for entry in os.listdir(samples_dir):
-            sample_file_path = os.path.join(samples_dir, entry)
-            sample_object_path = f'{split}/{entry}'
-            client.fput_object(bucket_name, sample_object_path, sample_file_path)
-            count += 1
-            if count % 5 == 0:
-                logging.info(f'{count} objects uploaded to {bucket_name}.')
+        for _ in range(10):
+            for entry in os.listdir(samples_dir):
+                count += 1
+                sample_file_path = os.path.join(samples_dir, entry)
+                sample_object_path = f'{split}/sample_{count}.npz'
+                client.fput_object(bucket_name, sample_object_path, sample_file_path)
+                if count % 5 == 0:
+                    logging.info(f'{count} objects uploaded to {bucket_name}.')
 
     except S3Error as s3_err:
         logging.error(f'S3 Error occurred: {s3_err}.')
