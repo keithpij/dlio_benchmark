@@ -608,8 +608,8 @@ def get_object_list(bucket_name: str, prefix: Optional[Union[str, None]]=None) -
         object_list = []
         objects = client.list_objects(bucket_name, prefix=prefix, recursive=True)
         for obj in objects:
-            #object_list.append(obj.object_name)
-            object_list.append({'object_name': obj.object_name, 'size': obj.size})
+            object_list.append(obj.object_name)
+            #object_list.append({'object_name': obj.object_name, 'size': obj.size})
 
     except S3Error as s3_err:
         logger.error(f'S3 Error occurred: {s3_err}.')
