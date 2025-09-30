@@ -73,7 +73,7 @@ def create_unet3d_loader(bucket_name: str, split: str, loader_type:str, batch_si
         return loader, (time.perf_counter()-start_time)
 
     # The remaining loader types load from MinIO.
-    # Get a list of objects and split them according to train and test.
+    # Get a list of objects for either train or val.
     X = du.get_unet3d_list(bucket_name, split, smoke_test_count)
 
     loader = None

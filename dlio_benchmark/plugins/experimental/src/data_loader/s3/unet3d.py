@@ -157,6 +157,20 @@ class TrainUNET3D(TrainingBase):
         self.log_training_metrics()
 
 
+def network_test(bucket_name: str, split: str) -> float:
+    '''
+    Simple single threaded network test.
+    '''
+    # Get a list of objects for either train or val.
+    X = du.get_unet3d_list(bucket_name, split, smoke_test_count=0)
+
+    run_start_time = time.perf_counter()
+    for sample in X:
+        img = du.get_object_from_minio(bucket_name, sample)
+    run_time = time.perf_counter() - run_start_time
+    return run_time
+
+
 def main():
     '''
     Main function that processes the arguments sent to this module via the command line.
@@ -166,6 +180,7 @@ def main():
     parser.add_argument('-lo', '--list_objects', help='List all objects in the specified bucket.')
     parser.add_argument('-eb', '--empty_bucket', help='Remove all objects in the specified bucket.')
     parser.add_argument('-load', '--load_bucket', help='Load the UNET3D dataset into the specified bucket.')
+    parser.add_argument('-nt', '--network_test', help='Simple network test.')
     parser.add_argument('-train', '--train', help='Train the UNET3D model.', action='store_true')
     parser.add_argument('-lt', '--loader_type', help='Type of loader to use for loading training and test sets ' \
                         '(map, iter, s3map or s3iter).')
@@ -184,11 +199,14 @@ def main():
         train_count, test_count = du.load_mnist_to_minio(args.load_bucket)
         print(f'MNIST training images added to {args.load_bucket}:', train_count)
         print(f'MNIST testing images added to {args.load_bucket}:', test_count)
+    if args.network_test:
+        run_time = network_test(args.network_test, 'train')
+        print(f'Network Test (in seconds) = {run_time:.4f}')
 
     if args.train:
         # Hyperparameters
         model_name = 'unet3D'
-        smoke_test_count = 168
+        smoke_test_count = 0
         parameters = {
             'batch_size': 7,
             'bucket_name': UNET3D_BUCKET_NAME,
@@ -197,8 +215,8 @@ def main():
             'computation_time': 0.636,
             'epochs': 1,
             'model_name': model_name,
-            'num_workers': 8,
-            'prefetch_factor': 2,
+            'num_workers': 32,
+            'prefetch_factor': 4,
             'smoke_test_count': smoke_test_count,
             'use_gpu': True,
             }
