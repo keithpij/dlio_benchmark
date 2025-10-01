@@ -165,18 +165,18 @@ def single_process(bucket_name: str, split: str) -> float:
     X = du.get_unet3d_list(bucket_name, split, smoke_test_count=0)
 
     run_start_time = time.perf_counter()
-    performance = []
+    bandwidth = []
     for object_path in X:
         start = time.perf_counter()
         img = du.get_object_from_minio(bucket_name, object_path)
         io_time = time.perf_counter() - start
         byte_size = len(img)
-        io_bandwidth = ((byte_size/io_time) * 8) / 1e9
-        performance.append(io_bandwidth)
+        object_bandwidth = ((byte_size/io_time) * 8) / 1e9
+        bandwidth.append(object_bandwidth)
 
     run_time = time.perf_counter() - run_start_time
 
-    return run_time, performance
+    return run_time, bandwidth
 
 
 def _worker(worker_id: int, samples: Sequence[str], out_q) -> None:
@@ -184,13 +184,13 @@ def _worker(worker_id: int, samples: Sequence[str], out_q) -> None:
     Worker run in a subprocess: loops through each character of each string
     and reports elapsed time back via out_q as a tuple (idx, elapsed_seconds).
     '''
-    start = time.perf_counter()
+    worker_start = time.perf_counter()
     for object_path in samples:
-        start = time.perf_counter()
+        #start = time.perf_counter()
         img = du.get_object_from_minio(UNET3D_BUCKET_NAME, object_path)
         #print(f'Object Size: {(len(img)/1e9):.4f} Gb - IO Time: {time.perf_counter()-start:.4f}s')
 
-    elapsed = time.perf_counter() - start
+    elapsed = time.perf_counter() - worker_start
     out_q.put((worker_id, elapsed))
 
 
@@ -216,7 +216,6 @@ def multi_process(object_list: List[str], num_workers: int) -> Dict[int, float]:
     #tasks = lists_of_strings[:8] + [[] for _ in range(max(0, 8 - len(lists_of_strings)))]
     tasks = []
     total_length = len(object_list)
-    print(type(total_length), type(num_workers))
     objects_per_worker = total_length // num_workers
 
     for i in range(num_workers):
@@ -224,6 +223,7 @@ def multi_process(object_list: List[str], num_workers: int) -> Dict[int, float]:
 
     q = Queue()
     procs = []
+    start = time.perf_counter()
     for i, task in enumerate(tasks):
         p = Process(target=_worker, args=(i, task, q))
         p.start()
@@ -237,9 +237,11 @@ def multi_process(object_list: List[str], num_workers: int) -> Dict[int, float]:
 
     for p in procs:
         p.join()
+    
+    final_results = {i: results.get(i, 0.0) for i in range(num_workers)}
+    wall_clock_time = time.perf_counter() - start
 
-    # Ensure deterministic ordering in returned dict keys 0..7
-    return {i: results.get(i, 0.0) for i in range(num_workers)}
+    return wall_clock_time, final_results
 
 
 def main():
@@ -275,11 +277,11 @@ def main():
         print(f'MNIST testing images added to {args.load_bucket}:', test_count)
 
     if args.single_process:
-        run_time, performance = single_process(args.single_process, 'train')
+        run_time, bandwidth = single_process(args.single_process, 'train')
         print(f'Single Process Test (in seconds) = {run_time:.4f}')
-        print(f'Max object bandwidth (in Gbps) = {max(performance):.4f} Gbps')
-        print(f'Avg object bandwidth (in Gbps) = {sum(performance)/len(performance):.4f} Gbps')
-        print(f'Min object bandwidth (in Gbps) = {min(performance):.4f} Gbps')
+        print(f'Max object bandwidth (in Gbps) = {max(bandwidth):.4f} Gbps')
+        print(f'Avg object bandwidth (in Gbps) = {sum(bandwidth)/len(bandwidth):.4f} Gbps')
+        print(f'Min object bandwidth (in Gbps) = {min(bandwidth):.4f} Gbps')
 
     if args.multi_process:
         # Prepare up to 8 lists of strings (fewer is OK; will be padded to 8)
@@ -287,8 +289,7 @@ def main():
         object_list = du.get_unet3d_list(UNET3D_BUCKET_NAME, 'train', smoke_test_count=0)
 
         start = time.perf_counter()
-        results = multi_process(object_list, int(args.multi_process))
-        total = time.perf_counter() - start
+        wall_clock_time, results = multi_process(object_list, int(args.multi_process))
 
         for worker_id in sorted(results):
             print(f"Process {worker_id} elapsed: {results[worker_id]:.6f} s")
