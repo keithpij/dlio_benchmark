@@ -72,7 +72,7 @@ def create_unet3d_loader(bucket_name: str, split: str, loader_type:str, batch_si
         loader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, prefetch_factor=prefetch_factor, drop_last=True, shuffle=True)
         return loader, (time.perf_counter()-start_time)
 
-    # The remaining loader types load from MinIO.
+    # The remaining loader types load from S3.
     # Get a list of objects for either train or val.
     X = du.get_unet3d_list(bucket_name, split, smoke_test_count)
 

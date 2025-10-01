@@ -2,13 +2,13 @@
 This module drives the MNIST training options.
 '''
 import argparse
+from multiprocessing import get_context
 import os
 import time
-from typing import Dict, Any
+from typing import Any, Dict, List, Sequence
 
 from dotenv import load_dotenv
 #import mlflow
-from torchvision import transforms
 from torch import nn
 from torch import optim
 from torch.utils.data.dataloader import DataLoader
@@ -97,7 +97,7 @@ class TrainUNET3D(TrainingBase):
                 utilization = (batch_compute_time / (batch_compute_time+batch_io_time)) * 100
                 self.logger.info(f'Epoch {epoch+1} - ' \
                             f'Batch {batch_count} - ' \
-                            f'Batch Size (bytes): {batch_byte_size} - ' \
+                            f'Batch Size (bytes): {(batch_byte_size/1e9):.4fGb} - ' \
                             f'Compute time: {batch_compute_time:.4f} - ' \
                             f'IO time: {batch_io_time:.4f} - ' \
                             #f'Device Transfer time: {batch_device_transfer_time:.4f} - ' \
@@ -157,7 +157,7 @@ class TrainUNET3D(TrainingBase):
         self.log_training_metrics()
 
 
-def network_test(bucket_name: str, split: str) -> float:
+def single_process(bucket_name: str, split: str) -> float:
     '''
     Simple single threaded network test.
     '''
@@ -165,10 +165,78 @@ def network_test(bucket_name: str, split: str) -> float:
     X = du.get_unet3d_list(bucket_name, split, smoke_test_count=0)
 
     run_start_time = time.perf_counter()
-    for sample in X:
-        img = du.get_object_from_minio(bucket_name, sample)
+    for object_path in X:
+        start = time.perf_counter()
+        img = du.get_object_from_minio(bucket_name, object_path)
+        print(f'Object Size: {(len(img)/1e9):.4f} Gb - IO Time: {time.perf_counter()-start:.4f}s')
+
     run_time = time.perf_counter() - run_start_time
     return run_time
+
+
+def _worker(worker_id: int, samples: Sequence[str], out_q) -> None:
+    '''
+    Worker run in a subprocess: loops through each character of each string
+    and reports elapsed time back via out_q as a tuple (idx, elapsed_seconds).
+    '''
+    start = time.perf_counter()
+    for object_path in samples:
+        start = time.perf_counter()
+        img = du.get_object_from_minio(UNET3D_BUCKET_NAME, object_path)
+        print(f'Object Size: {(len(img)/1e9):.4f} Gb - IO Time: {time.perf_counter()-start:.4f}s')
+
+    elapsed = time.perf_counter() - start
+    out_q.put((worker_id, elapsed))
+
+
+def multi_process(object_list: List[str], num_workers: int) -> Dict[int, float]:
+    '''
+    Create 8 subprocesses and send each subprocess a list of strings.
+    Each subprocess loops through the characters of each string and reports
+    back how long its loop took.
+
+    Args:
+      lists_of_strings: list of lists of strings. If fewer than 8 lists are
+                        provided the remaining processes receive empty lists.
+                        If more than 8 are provided only the first 8 are used.
+
+    Returns:
+      Dict mapping process index (0..7) -> elapsed seconds.
+    '''
+    ctx = get_context('spawn')  # safe on macOS without requiring __main__ guard
+    Queue = ctx.Queue
+    Process = ctx.Process
+
+    #X = du.get_unet3d_list(bucket_name, 'train', smoke_test_count)
+
+    # Ensure exactly 8 tasks
+    #tasks = lists_of_strings[:8] + [[] for _ in range(max(0, 8 - len(lists_of_strings)))]
+    tasks = []
+    total_length = len(object_list)
+    print(type(total_length), type(num_workers))
+    objects_per_worker = total_length // num_workers
+
+    for i in range(num_workers):
+        tasks.append(object_list[i*objects_per_worker:(i+1)*objects_per_worker])
+
+    q = Queue()
+    procs = []
+    for i, task in enumerate(tasks):
+        p = Process(target=_worker, args=(i, task, q))
+        p.start()
+        procs.append(p)
+
+    results: Dict[int, float] = {}
+    # collect one result per started process
+    for _ in procs:
+        worker_id, elapsed = q.get()
+        results[worker_id] = elapsed
+
+    for p in procs:
+        p.join()
+
+    # Ensure deterministic ordering in returned dict keys 0..7
+    return {i: results.get(i, 0.0) for i in range(num_workers)}
 
 
 def main():
@@ -180,10 +248,13 @@ def main():
     parser.add_argument('-lo', '--list_objects', help='List all objects in the specified bucket.')
     parser.add_argument('-eb', '--empty_bucket', help='Remove all objects in the specified bucket.')
     parser.add_argument('-load', '--load_bucket', help='Load the UNET3D dataset into the specified bucket.')
-    parser.add_argument('-nt', '--network_test', help='Simple network test.')
     parser.add_argument('-train', '--train', help='Train the UNET3D model.', action='store_true')
     parser.add_argument('-lt', '--loader_type', help='Type of loader to use for loading training and test sets ' \
                         '(map, iter, s3map or s3iter).')
+
+    parser.add_argument('-sp', '--single_process', help='Single process test.')
+    parser.add_argument('-mp', '--multi_process', help='Multi-process test.')
+
     args = parser.parse_args()
 
     if args.empty_bucket:
@@ -199,9 +270,25 @@ def main():
         train_count, test_count = du.load_mnist_to_minio(args.load_bucket)
         print(f'MNIST training images added to {args.load_bucket}:', train_count)
         print(f'MNIST testing images added to {args.load_bucket}:', test_count)
-    if args.network_test:
-        run_time = network_test(args.network_test, 'train')
-        print(f'Network Test (in seconds) = {run_time:.4f}')
+
+    if args.single_process:
+        run_time = single_process(args.single_process, 'train')
+        print(f'Single Process Test (in seconds) = {run_time:.4f}')
+
+    if args.multi_process:
+        # Prepare up to 8 lists of strings (fewer is OK; will be padded to 8)
+        object_list = ["aaaa", "bbbb", "cccc", "dddd", "eeee", "ffff", "gggg", "hhhh", "iiii", "jjjj","kkkk", "llll", "mmmm", "nnnn", "oooo", "pppp","qqqq", "rrrr", "ssss", "tttt","uuuu", "vvvv", "wwww", "xxxx","yyyy", "zzzz", "$$$"]
+
+        start = time.perf_counter()
+        results = multi_process(object_list, int(args.multi_process))
+        total = time.perf_counter() - start
+
+        for worker_id in sorted(results):
+            print(f"Process {worker_id} elapsed: {results[worker_id]:.6f} s")
+        print(f"Total wall-clock time to collect results: {total:.6f} s")
+
+        #run_time = multi_process(args.multi_process, 'train', num_workers=8)
+        #print(f'Multi Process Test (in seconds) = {run_time:.4f}')
 
     if args.train:
         # Hyperparameters
