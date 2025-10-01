@@ -165,13 +165,18 @@ def single_process(bucket_name: str, split: str) -> float:
     X = du.get_unet3d_list(bucket_name, split, smoke_test_count=0)
 
     run_start_time = time.perf_counter()
+    performance = []
     for object_path in X:
         start = time.perf_counter()
         img = du.get_object_from_minio(bucket_name, object_path)
-        print(f'Object Size: {(len(img)/1e9):.4f} Gb - IO Time: {time.perf_counter()-start:.4f}s')
+        io_time = time.perf_counter() - start
+        byte_size = len(img)
+        io_bandwidth = ((byte_size/io_time) * 8) / 1e9
+        performance.append(io_bandwidth)
 
     run_time = time.perf_counter() - run_start_time
-    return run_time
+
+    return run_time, performance
 
 
 def _worker(worker_id: int, samples: Sequence[str], out_q) -> None:
@@ -183,7 +188,7 @@ def _worker(worker_id: int, samples: Sequence[str], out_q) -> None:
     for object_path in samples:
         start = time.perf_counter()
         img = du.get_object_from_minio(UNET3D_BUCKET_NAME, object_path)
-        print(f'Object Size: {(len(img)/1e9):.4f} Gb - IO Time: {time.perf_counter()-start:.4f}s')
+        #print(f'Object Size: {(len(img)/1e9):.4f} Gb - IO Time: {time.perf_counter()-start:.4f}s')
 
     elapsed = time.perf_counter() - start
     out_q.put((worker_id, elapsed))
@@ -206,8 +211,6 @@ def multi_process(object_list: List[str], num_workers: int) -> Dict[int, float]:
     ctx = get_context('spawn')  # safe on macOS without requiring __main__ guard
     Queue = ctx.Queue
     Process = ctx.Process
-
-    #X = du.get_unet3d_list(bucket_name, 'train', smoke_test_count)
 
     # Ensure exactly 8 tasks
     #tasks = lists_of_strings[:8] + [[] for _ in range(max(0, 8 - len(lists_of_strings)))]
@@ -272,12 +275,16 @@ def main():
         print(f'MNIST testing images added to {args.load_bucket}:', test_count)
 
     if args.single_process:
-        run_time = single_process(args.single_process, 'train')
+        run_time, performance = single_process(args.single_process, 'train')
         print(f'Single Process Test (in seconds) = {run_time:.4f}')
+        print(f'Max object bandwidth (in Gbps) = {max(performance):.4f} Gbps')
+        print(f'Avg object bandwidth (in Gbps) = {sum(performance)/len(performance):.4f} Gbps')
+        print(f'Min object bandwidth (in Gbps) = {min(performance):.4f} Gbps')
 
     if args.multi_process:
         # Prepare up to 8 lists of strings (fewer is OK; will be padded to 8)
-        object_list = ["aaaa", "bbbb", "cccc", "dddd", "eeee", "ffff", "gggg", "hhhh", "iiii", "jjjj","kkkk", "llll", "mmmm", "nnnn", "oooo", "pppp","qqqq", "rrrr", "ssss", "tttt","uuuu", "vvvv", "wwww", "xxxx","yyyy", "zzzz", "$$$"]
+        #object_list = ["aaaa", "bbbb", "cccc", "dddd", "eeee", "ffff", "gggg", "hhhh", "iiii", "jjjj","kkkk", "llll", "mmmm", "nnnn", "oooo", "pppp","qqqq", "rrrr", "ssss", "tttt","uuuu", "vvvv", "wwww", "xxxx","yyyy", "zzzz", "$$$"]
+        object_list = du.get_unet3d_list(UNET3D_BUCKET_NAME, 'train', smoke_test_count=0)
 
         start = time.perf_counter()
         results = multi_process(object_list, int(args.multi_process))
