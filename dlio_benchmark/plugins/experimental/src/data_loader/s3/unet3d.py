@@ -293,7 +293,7 @@ def main():
 
         for worker_id in sorted(results):
             print(f"Process {worker_id} elapsed: {results[worker_id]:.6f} s")
-        print(f"Total wall-clock time to collect results: {total:.6f} s")
+        print(f"Total wall-clock time to collect results: {wall_clock_time:.6f} s")
 
         #run_time = multi_process(args.multi_process, 'train', num_workers=8)
         #print(f'Multi Process Test (in seconds) = {run_time:.4f}')
