@@ -241,7 +241,7 @@ def multi_process(object_list: List[str], num_workers: int) -> Dict[int, float]:
     final_results = {i: results.get(i, 0.0) for i in range(num_workers)}
     wall_clock_time = time.perf_counter() - start
 
-    return wall_clock_time, final_results
+    return wall_clock_time, objects_per_worker, final_results
 
 
 def main():
@@ -288,9 +288,9 @@ def main():
         #object_list = ["aaaa", "bbbb", "cccc", "dddd", "eeee", "ffff", "gggg", "hhhh", "iiii", "jjjj","kkkk", "llll", "mmmm", "nnnn", "oooo", "pppp","qqqq", "rrrr", "ssss", "tttt","uuuu", "vvvv", "wwww", "xxxx","yyyy", "zzzz", "$$$"]
         object_list = du.get_unet3d_list(UNET3D_BUCKET_NAME, 'train', smoke_test_count=0)
 
-        start = time.perf_counter()
-        wall_clock_time, results = multi_process(object_list, int(args.multi_process))
-
+        wall_clock_time, objects_per_worker, results = multi_process(object_list, int(args.multi_process))
+        
+        print(f'Objects per worker: {objects_per_worker}   Total objects: {len(object_list)}')
         for worker_id in sorted(results):
             print(f"Process {worker_id} elapsed: {results[worker_id]:.6f} s")
         print(f"Total wall-clock time to collect results: {wall_clock_time:.6f} s")
