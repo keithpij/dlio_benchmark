@@ -294,17 +294,20 @@ def main():
         print(f'Min object bandwidth (in Gbps) = {min(object_bandwidths):.4f} Gbps')
 
     if args.multi_process:
-        # Prepare up to 8 lists of strings (fewer is OK; will be padded to 8)
-        #object_list = ["aaaa", "bbbb", "cccc", "dddd", "eeee", "ffff", "gggg", "hhhh", "iiii", "jjjj","kkkk", "llll", "mmmm", "nnnn", "oooo", "pppp","qqqq", "rrrr", "ssss", "tttt","uuuu", "vvvv", "wwww", "xxxx","yyyy", "zzzz", "$$$"]
         object_list = du.get_unet3d_list(UNET3D_BUCKET_NAME, 'train', smoke_test_count=0)
 
         wall_clock_time, objects_per_worker, results = multi_process(object_list, int(args.multi_process))
+        print(f'Total Wall-clock Time: {wall_clock_time:.6f}s')
+        print(f'Objects per worker: {objects_per_worker}')
 
-        print(f'Objects per worker: {objects_per_worker}   Total objects: {len(object_list)}')
+        total_bytes = 0
         for worker_id in sorted(results):
             r = results[worker_id]
+            total_bytes += r[0]
             print(f'Process {worker_id}: Bytes: {r[0]:.4f}s - IO time: {r[1]:.4f}s')
-        print(f'Total wall-clock time to collect results: {wall_clock_time:.6f}s')
+        print(f'Total dataset size (in bytes) = {total_bytes / 1e9:.4f}')
+        print(f'Bandwidth: {((total_bytes/wall_clock_time) * 8) / 1e9:.4f} Gbps') # Gbps
+        print(f'Number of objects: {len(object_list)}')
 
         #run_time = multi_process(args.multi_process, 'train', num_workers=8)
         #print(f'Multi Process Test (in seconds) = {run_time:.4f}')
