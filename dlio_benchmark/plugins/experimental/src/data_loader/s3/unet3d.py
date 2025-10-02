@@ -164,19 +164,20 @@ def single_process(bucket_name: str, split: str) -> float:
     # Get a list of objects for either train or val.
     X = du.get_unet3d_list(bucket_name, split, smoke_test_count=0)
 
-    run_start_time = time.perf_counter()
-    bandwidth = []
+    object_bandwidths = []
+    total_bytes = 0
+    total_io_time = time.perf_counter()
     for object_path in X:
         start = time.perf_counter()
         img = du.get_object_from_minio(bucket_name, object_path)
         io_time = time.perf_counter() - start
+        total_io_time += io_time
         byte_size = len(img)
-        object_bandwidth = ((byte_size/io_time) * 8) / 1e9
-        bandwidth.append(object_bandwidth)
+        total_bytes += byte_size
+        object_bandwidth = ((byte_size/io_time) * 8) / 1e9 # Gbps
+        object_bandwidths.append(object_bandwidth)
 
-    run_time = time.perf_counter() - run_start_time
-
-    return run_time, bandwidth
+    return total_bytes, total_io_time, object_bandwidths
 
 
 def _worker(worker_id: int, samples: Sequence[str], out_q) -> None:
@@ -277,11 +278,12 @@ def main():
         print(f'MNIST testing images added to {args.load_bucket}:', test_count)
 
     if args.single_process:
-        run_time, bandwidth = single_process(args.single_process, 'train')
-        print(f'Single Process Test (in seconds) = {run_time:.4f}')
-        print(f'Max object bandwidth (in Gbps) = {max(bandwidth):.4f} Gbps')
-        print(f'Avg object bandwidth (in Gbps) = {sum(bandwidth)/len(bandwidth):.4f} Gbps')
-        print(f'Min object bandwidth (in Gbps) = {min(bandwidth):.4f} Gbps')
+        total_bytes, total_io_time, object_bandwidths = single_process(args.single_process, 'train')
+        print(f'Total IO Time (in seconds) = {total_io_time:.4f}')
+        print(f'Number of objects = {len(object_bandwidths)}')
+        print(f'Max object bandwidth (in Gbps) = {max(object_bandwidths):.4f} Gbps')
+        print(f'Avg object bandwidth (in Gbps) = {sum(object_bandwidths)/len(object_bandwidths):.4f} Gbps')
+        print(f'Min object bandwidth (in Gbps) = {min(object_bandwidths):.4f} Gbps')
 
     if args.multi_process:
         # Prepare up to 8 lists of strings (fewer is OK; will be padded to 8)
@@ -289,7 +291,7 @@ def main():
         object_list = du.get_unet3d_list(UNET3D_BUCKET_NAME, 'train', smoke_test_count=0)
 
         wall_clock_time, objects_per_worker, results = multi_process(object_list, int(args.multi_process))
-        
+
         print(f'Objects per worker: {objects_per_worker}   Total objects: {len(object_list)}')
         for worker_id in sorted(results):
             print(f"Process {worker_id} elapsed: {results[worker_id]:.6f} s")
