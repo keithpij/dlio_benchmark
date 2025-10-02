@@ -5,7 +5,7 @@ import argparse
 from multiprocessing import get_context
 import os
 import time
-from typing import Any, Dict, List, Sequence
+from typing import Any, Dict, List, Sequence, Tuple
 
 from dotenv import load_dotenv
 #import mlflow
@@ -185,14 +185,20 @@ def _worker(worker_id: int, samples: Sequence[str], out_q) -> None:
     Worker run in a subprocess: loops through each character of each string
     and reports elapsed time back via out_q as a tuple (idx, elapsed_seconds).
     '''
-    worker_start = time.perf_counter()
+    object_bandwidths = []
+    total_bytes = 0
+    total_io_time = 0
     for object_path in samples:
-        #start = time.perf_counter()
+        start = time.perf_counter()
         img = du.get_object_from_minio(UNET3D_BUCKET_NAME, object_path)
-        #print(f'Object Size: {(len(img)/1e9):.4f} Gb - IO Time: {time.perf_counter()-start:.4f}s')
+        io_time = time.perf_counter() - start
+        total_io_time += io_time
+        byte_size = len(img)
+        total_bytes += byte_size
+        object_bandwidth = ((byte_size/io_time) * 8) / 1e9 # Gbps
+        object_bandwidths.append(object_bandwidth)
 
-    elapsed = time.perf_counter() - worker_start
-    out_q.put((worker_id, elapsed))
+    out_q.put((worker_id, total_bytes, total_io_time, object_bandwidths))
 
 
 def multi_process(object_list: List[str], num_workers: int) -> Dict[int, float]:
@@ -230,11 +236,11 @@ def multi_process(object_list: List[str], num_workers: int) -> Dict[int, float]:
         p.start()
         procs.append(p)
 
-    results: Dict[int, float] = {}
+    results: Dict[int, Tuple[float, float, List[float]]] = {}
     # collect one result per started process
     for _ in procs:
-        worker_id, elapsed = q.get()
-        results[worker_id] = elapsed
+        worker_id, total_bytes, total_io_time, object_bandwidths = q.get()
+        results[worker_id] = (total_bytes, total_io_time, object_bandwidths)
 
     for p in procs:
         p.join()
@@ -280,7 +286,7 @@ def main():
     if args.single_process:
         total_bytes, total_io_time, object_bandwidths = single_process(args.single_process, 'train')
         print(f'Total IO Time (in seconds) = {total_io_time:.4f}')
-        print(f'Total dataset size (in bytes) = {total_bytes:.4f}')
+        print(f'Total dataset size (in bytes) = {total_bytes / 1e9:.4f}')
         print(f'Bandwidth: {((total_bytes/total_io_time) * 8) / 1e9:.4f} Gbps') # Gbps
         print(f'Number of objects = {len(object_bandwidths)}')
         print(f'Max object bandwidth (in Gbps) = {max(object_bandwidths):.4f} Gbps')
@@ -296,8 +302,9 @@ def main():
 
         print(f'Objects per worker: {objects_per_worker}   Total objects: {len(object_list)}')
         for worker_id in sorted(results):
-            print(f"Process {worker_id} elapsed: {results[worker_id]:.6f} s")
-        print(f"Total wall-clock time to collect results: {wall_clock_time:.6f} s")
+            r = results[worker_id]
+            print(f'Process {worker_id}: Bytes: {r[0]:.4f}s - IO time: {r[1]:.4f}s')
+        print(f'Total wall-clock time to collect results: {wall_clock_time:.6f}s')
 
         #run_time = multi_process(args.multi_process, 'train', num_workers=8)
         #print(f'Multi Process Test (in seconds) = {run_time:.4f}')
