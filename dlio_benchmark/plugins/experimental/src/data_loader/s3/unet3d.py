@@ -166,7 +166,7 @@ def single_process(bucket_name: str, split: str) -> float:
 
     object_bandwidths = []
     total_bytes = 0
-    total_io_time = time.perf_counter()
+    total_io_time = 0
     for object_path in X:
         start = time.perf_counter()
         img = du.get_object_from_minio(bucket_name, object_path)
