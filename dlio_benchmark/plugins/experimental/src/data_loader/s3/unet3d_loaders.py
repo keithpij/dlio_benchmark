@@ -35,9 +35,25 @@ class UNET3DMap(Dataset):
         return len(self.X)
 
     def __getitem__(self, index):
-        img = du.get_object_from_minio(self.bucket_name, self.X[index])
-        with BytesIO(img) as bio:
-            return np.load(bio, allow_pickle=True)
+        sample = du.get_object_from_minio(self.bucket_name, self.X[index])
+
+        bio = BytesIO(sample)
+        with np.load(bio, allow_pickle=True) as f:
+            # np.load returns an ndarray for .npy and an NpzFile for .npz
+            if isinstance(f, np.lib.npyio.NpzFile):
+                files = f.files
+                if 'x' in files:
+                    arr = f['x']
+                else:
+                    # fall back to first file in archive
+                    arr = f[files[0]]
+            else:
+                arr = f  # plain .npy -> ndarray
+
+        # Convert to torch, ensure contiguous
+        t = torch.from_numpy(np.ascontiguousarray(arr))
+        return t
+
         #return torch.tensor([1,2,3], dtype=torch.float16)
 
 
