@@ -97,7 +97,7 @@ class TrainUNET3D(TrainingBase):
                 utilization = (batch_compute_time / (batch_compute_time+batch_io_time)) * 100
                 self.logger.info(f'Epoch {epoch+1} - ' \
                             f'Batch {batch_count} - ' \
-                            f'Batch Size (bytes): {(batch_byte_size/1e9):.4fGb} - ' \
+                            f'Batch Size (bytes): {(batch_byte_size/1e9):.4f}Gb - ' \
                             f'Compute time: {batch_compute_time:.4f} - ' \
                             f'IO time: {batch_io_time:.4f} - ' \
                             #f'Device Transfer time: {batch_device_transfer_time:.4f} - ' \
