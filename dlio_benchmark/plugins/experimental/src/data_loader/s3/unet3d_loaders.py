@@ -1,15 +1,7 @@
 '''
-This module contains classes and functions to load MNIST data.
+This module contains classes and functions to load UNDET3D data.
 The following classes are defined:
-    MNISTMemory: A map-style dataset that loads all images into memory during initialization.
-    MNISTMap: A map-style dataset that loads images from MinIO when the get function is called.
-    MNISTIterableTar: An iterable dataset that loads images from tar files in MinIO.
-    MNISTIterable: An iterable dataset that loads images from MinIO.
-    MNISTList: A map-style dataset that loads images from MinIO when the get function is called.
-    S3IterTransform: A callable class that transforms S3Reader objects into image tensors.
-    IterTransform: A callable class that transforms object paths into image tensors.
-    IterTarTransform: A callable class that transforms image tuples into image tensors.
-    S3MapTransform: A callable class that transforms S3Reader objects into image tensors.
+    UNET3DMap: A map-style dataset that loads images from MinIO when the get function is called.
     create_mnist_loader: A function that creates a DataLoader object for MNIST data.
 '''
 from io import BytesIO
@@ -19,6 +11,7 @@ import tarfile
 import time
 from typing import List, Tuple
 
+import numpy as np
 import PIL
 from PIL import Image
 from s3torchconnector import S3MapDataset, S3IterableDataset, S3Reader
@@ -43,7 +36,9 @@ class UNET3DMap(Dataset):
 
     def __getitem__(self, index):
         img = du.get_object_from_minio(self.bucket_name, self.X[index])
-        return torch.tensor([1,2,3], dtype=torch.float16)
+        with BytesIO(img) as bio:
+            return np.load(bio, allow_pickle=True)
+        #return torch.tensor([1,2,3], dtype=torch.float16)
 
 
 def create_unet3d_loader(bucket_name: str, split: str, loader_type:str, batch_size:int, num_workers: int=1, prefetch_factor: int=1,
