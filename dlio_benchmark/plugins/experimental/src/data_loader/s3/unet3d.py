@@ -281,6 +281,7 @@ def main():
         total_bytes, total_io_time, object_bandwidths = single_process(args.single_process, 'train')
         print(f'Total IO Time (in seconds) = {total_io_time:.4f}')
         print(f'Total dataset size (in bytes) = {total_bytes:.4f}')
+        print(f'Bandwidth: {((total_bytes/total_io_time) * 8) / 1e9:.4f} Gbps') # Gbps
         print(f'Number of objects = {len(object_bandwidths)}')
         print(f'Max object bandwidth (in Gbps) = {max(object_bandwidths):.4f} Gbps')
         print(f'Avg object bandwidth (in Gbps) = {sum(object_bandwidths)/len(object_bandwidths):.4f} Gbps')
