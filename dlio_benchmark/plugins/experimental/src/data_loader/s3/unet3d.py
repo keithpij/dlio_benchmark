@@ -309,9 +309,6 @@ def main():
         print(f'Bandwidth: {((total_bytes/wall_clock_time) * 8) / 1e9:.4f} Gbps') # Gbps
         print(f'Number of objects: {len(object_list)}')
 
-        #run_time = multi_process(args.multi_process, 'train', num_workers=8)
-        #print(f'Multi Process Test (in seconds) = {run_time:.4f}')
-
     if args.train:
         # Hyperparameters
         model_name = 'unet3D'
@@ -325,7 +322,7 @@ def main():
             'epochs': 1,
             'model_name': model_name,
             'num_workers': 32,
-            'prefetch_factor': 4,
+            'prefetch_factor': 1,
             'smoke_test_count': smoke_test_count,
             'use_gpu': True,
             }
