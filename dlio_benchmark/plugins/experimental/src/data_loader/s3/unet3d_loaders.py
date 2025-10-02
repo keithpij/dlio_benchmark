@@ -43,7 +43,7 @@ class UNET3DMap(Dataset):
 
     def __getitem__(self, index):
         img = du.get_object_from_minio(self.bucket_name, self.X[index])
-        return img
+        return torch.tensor([1,2,3], dtype=torch.float16)
 
 
 def create_unet3d_loader(bucket_name: str, split: str, loader_type:str, batch_size:int, num_workers: int=1, prefetch_factor: int=1,

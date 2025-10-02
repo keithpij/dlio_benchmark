@@ -94,14 +94,15 @@ class TrainUNET3D(TrainingBase):
                 epoch_compute_time += batch_compute_time
                 #epoch_device_transfer_time += batch_device_transfer_time
                 epoch_io_time += batch_io_time
-                utilization = (batch_compute_time / (batch_compute_time+batch_io_time)) * 100
-                self.logger.info(f'Epoch {epoch+1} - ' \
-                            f'Batch {batch_count} - ' \
-                            f'Batch Size (bytes): {(batch_byte_size/1e9):.4f}Gb - ' \
-                            f'Compute time: {batch_compute_time:.4f} - ' \
-                            f'IO time: {batch_io_time:.4f} - ' \
-                            #f'Device Transfer time: {batch_device_transfer_time:.4f} - ' \
-                            f'Utilization: {utilization:.2f}%.')
+
+                #utilization = (batch_compute_time / (batch_compute_time+batch_io_time)) * 100
+                #self.logger.info(f'Epoch {epoch+1} - ' \
+                #            f'Batch {batch_count} - ' \
+                #            f'Batch Size (bytes): {(batch_byte_size/1e9):.4f}Gb - ' \
+                #            f'Compute time: {batch_compute_time:.4f} - ' \
+                #            f'IO time: {batch_io_time:.4f} - ' \
+                #            #f'Device Transfer time: {batch_device_transfer_time:.4f} - ' \
+                #            f'Utilization: {utilization:.2f}%.')
 
                 # Need to set this here for the next loop.
                 io_start = time.perf_counter()
