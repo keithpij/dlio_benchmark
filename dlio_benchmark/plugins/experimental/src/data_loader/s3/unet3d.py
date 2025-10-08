@@ -58,19 +58,25 @@ class TrainUNET3D(TrainingBase):
             epoch_byte_size:int = 0
 
             # Batch loop
-            for samples in loader:
+            for samples, labels in loader:
                 # IO time for the batch.
                 batch_io_time = time.perf_counter() - io_start
                 # Iterable datasets do not have a __len__ method since batches are determined dynamically.
                 batch_count += 1
 
                 batch_byte_size: int = 0
-                for sample in samples:
-                    batch_byte_size += len(sample)
+                #for sample in samples:
+                #    batch_byte_size += len(sample)
 
-                #number_of_elements = samples.numel()
-                #element_byte_size = samples.element_size()
-                #batch_byte_size = number_of_elements * element_byte_size
+                # samples
+                number_of_elements = samples.numel()
+                element_byte_size = samples.element_size()
+                batch_byte_size = number_of_elements * element_byte_size
+                # labels
+                number_of_elements = labels.numel()
+                element_byte_size = labels.element_size()
+                batch_byte_size += number_of_elements * element_byte_size
+
                 epoch_byte_size += batch_byte_size
 
                 #device_start = time.perf_counter()

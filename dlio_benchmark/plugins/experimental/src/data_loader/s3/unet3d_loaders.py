@@ -35,10 +35,15 @@ class UNET3DMap(Dataset):
         return len(self.X)
 
     def __getitem__(self, index):
-        sample = du.get_object_from_minio(self.bucket_name, self.X[index])
+        data_bytes = du.get_object_from_minio(self.bucket_name, self.X[index])
+        bytes_io = BytesIO(data_bytes)
+        with np.load(bytes_io) as data:
+            sample = data['x']
+            label = data['y']
+            sample_tensor = torch.tensor(sample, dtype=torch.uint8)
+            label_tensor = torch.tensor(label, dtype=torch.int64)
 
-        bytes_io = BytesIO(sample)
-        return np.load(bytes_io, allow_pickle=True)['x']
+        return sample_tensor, label_tensor
         #return torch.tensor([1,2,3], dtype=torch.float16)
 
 
