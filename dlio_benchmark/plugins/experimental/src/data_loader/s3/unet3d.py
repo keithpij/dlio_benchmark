@@ -2,13 +2,15 @@
 This module drives the MNIST training options.
 '''
 import argparse
+from io import BytesIO
 from multiprocessing import get_context
 import os
 import time
 from typing import Any, Dict, List, Sequence, Tuple
 
 from dotenv import load_dotenv
-#import mlflow
+import numpy as np
+import torch
 from torch import nn
 from torch import optim
 from torch.utils.data.dataloader import DataLoader
@@ -170,13 +172,19 @@ def single_process(bucket_name: str, split: str) -> float:
     total_io_time = 0
     for object_path in X:
         start = time.perf_counter()
-        img = du.get_object_from_minio(bucket_name, object_path)
+        data_bytes = du.get_object_from_minio(bucket_name, object_path)
         io_time = time.perf_counter() - start
         total_io_time += io_time
-        byte_size = len(img)
+        byte_size = len(data_bytes)
         total_bytes += byte_size
         object_bandwidth = ((byte_size/io_time) * 8) / 1e9 # Gbps
         object_bandwidths.append(object_bandwidth)
+        bytes_io = BytesIO(data_bytes)
+        with np.load(bytes_io) as data:
+            sample = data['x']
+            label = data['y']
+            sample_tensor = torch.tensor(sample, dtype=torch.uint8)
+            label_tensor = torch.tensor(label, dtype=torch.int64)
 
     return total_bytes, total_io_time, object_bandwidths
 
@@ -191,13 +199,19 @@ def _worker(worker_id: int, samples: Sequence[str], out_q) -> None:
     total_io_time = 0
     for object_path in samples:
         start = time.perf_counter()
-        img = du.get_object_from_minio(UNET3D_BUCKET_NAME, object_path)
+        data_bytes = du.get_object_from_minio(UNET3D_BUCKET_NAME, object_path)
         io_time = time.perf_counter() - start
         total_io_time += io_time
-        byte_size = len(img)
+        byte_size = len(data_bytes)
         total_bytes += byte_size
         object_bandwidth = ((byte_size/io_time) * 8) / 1e9 # Gbps
         object_bandwidths.append(object_bandwidth)
+        bytes_io = BytesIO(data_bytes)
+        with np.load(bytes_io) as data:
+            sample = data['x']
+            label = data['y']
+            sample_tensor = torch.tensor(sample, dtype=torch.uint8)
+            label_tensor = torch.tensor(label, dtype=torch.int64)
 
     out_q.put((worker_id, total_bytes, total_io_time, object_bandwidths))
 
