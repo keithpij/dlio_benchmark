@@ -14,7 +14,7 @@ DATASET_FOLDER = os.environ['DATASET_FOLDER'] #'/home/keithpij/dlio_benchmark/da
 BUCKET_NAME = os.environ['BUCKET_NAME']
 
 
-def put_folder(bucket_name: str, dataset_folder: str, split: str) -> int:
+def put_folder(bucket_name: str, dataset_folder: str, split: str, expand_dataset: int=0) -> int:
     '''
     Removes all objects from the specified bucket.
     '''
@@ -37,11 +37,21 @@ def put_folder(bucket_name: str, dataset_folder: str, split: str) -> int:
 
         count = 0
         samples_dir = os.path.join(dataset_folder, split)
-        for _ in range(10):
+
+        if expand_dataset:
+            for _ in range(expand_dataset):
+                for entry in os.listdir(samples_dir):
+                    count += 1
+                    sample_file_path = os.path.join(samples_dir, entry)
+                    sample_object_path = f'{split}/sample_{count}.npz'
+                    client.fput_object(bucket_name, sample_object_path, sample_file_path)
+                    if count % 5 == 0:
+                        logging.info(f'{count} objects uploaded to {bucket_name}.')
+        else:
             for entry in os.listdir(samples_dir):
                 count += 1
                 sample_file_path = os.path.join(samples_dir, entry)
-                sample_object_path = f'{split}/sample_{count}.npz'
+                sample_object_path = f'{split}/{entry}'
                 client.fput_object(bucket_name, sample_object_path, sample_file_path)
                 if count % 5 == 0:
                     logging.info(f'{count} objects uploaded to {bucket_name}.')
@@ -81,7 +91,7 @@ def main():
         print(f'Number of objects in {BUCKET_NAME}:', len(object_list))
         print(object_list[:10])
     if args.load_bucket:
-        put_folder(BUCKET_NAME, DATASET_FOLDER, 'train')
+        put_folder(BUCKET_NAME, DATASET_FOLDER, 'train', 0)
 
 
 if __name__ == '__main__':

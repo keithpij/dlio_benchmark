@@ -274,7 +274,6 @@ def main():
     parser.add_argument('-lb', '--list_buckets', help='List all buckets.', action='store_true')
     parser.add_argument('-lo', '--list_objects', help='List all objects in the specified bucket.')
     parser.add_argument('-eb', '--empty_bucket', help='Remove all objects in the specified bucket.')
-    parser.add_argument('-load', '--load_bucket', help='Load the UNET3D dataset into the specified bucket.')
     parser.add_argument('-train', '--train', help='Train the UNET3D model.', action='store_true')
     parser.add_argument('-lt', '--loader_type', help='Type of loader to use for loading training and test sets ' \
                         '(map, iter, s3map or s3iter).')
@@ -293,10 +292,6 @@ def main():
     if args.list_objects:
         object_list = du.get_object_list(args.list_objects)
         print(f'Number of objects in {args.list_objects}:', len(object_list))
-    if args.load_bucket:
-        train_count, test_count = du.load_mnist_to_minio(args.load_bucket)
-        print(f'MNIST training images added to {args.load_bucket}:', train_count)
-        print(f'MNIST testing images added to {args.load_bucket}:', test_count)
 
     if args.single_process:
         total_bytes, total_io_time, object_bandwidths = single_process(args.single_process, 'train')
