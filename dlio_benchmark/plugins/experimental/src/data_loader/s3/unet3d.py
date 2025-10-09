@@ -338,7 +338,7 @@ def main():
             'epochs': 5,
             'model_name': model_name,
             'num_workers': 32,
-            'prefetch_factor': 2,
+            'prefetch_factor': 4,
             'smoke_test_count': smoke_test_count,
             'use_gpu': True,
             }

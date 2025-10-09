@@ -70,7 +70,8 @@ def create_unet3d_loader(bucket_name: str, split: str, loader_type:str, batch_si
         uri = f's3://{bucket_name}/{split}'
         aws_region = os.environ['AWS_REGION']
         dataset = S3MapDataset.from_prefix(uri, region=aws_region)
-        loader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, persistent_workers=True, prefetch_factor=prefetch_factor, drop_last=True, shuffle=True)
+        loader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, persistent_workers=True, prefetch_factor=prefetch_factor,
+                            drop_last=True, shuffle=False)
         return loader, (time.perf_counter()-start_time)
 
     # The remaining loader types load from S3.
@@ -88,6 +89,7 @@ def create_unet3d_loader(bucket_name: str, split: str, loader_type:str, batch_si
         raise ValueError('loader_type must be either file, list, full, map or s3map.')
 
     if loader is None:
-        loader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, persistent_workers=True, prefetch_factor=prefetch_factor, drop_last=True, shuffle=True)
+        loader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, persistent_workers=True, prefetch_factor=prefetch_factor,
+                            drop_last=True, shuffle=False)
 
     return loader, (time.perf_counter()-start_time)
