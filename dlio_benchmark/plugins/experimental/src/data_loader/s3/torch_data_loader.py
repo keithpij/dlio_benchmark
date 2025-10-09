@@ -179,7 +179,8 @@ class S3TorchDataset(Dataset):
         with np.load(bytes_io) as data:
             sample = data['x']
             label = data['y']
-            sample_tensor = torch.tensor(sample, dtype=torch.uint8)
+            #sample_tensor = torch.tensor(sample, dtype=torch.uint8)
+            sample_tensor = torch.tensor(sample[0:2000, 0:2000,:], dtype=torch.uint8)
             label_tensor = torch.tensor(label, dtype=torch.int64)
 
         #return sample_tensor, label_tensor
