@@ -40,7 +40,7 @@ class UNET3DMap(Dataset):
         with np.load(bytes_io) as data:
             sample = data['x']
             label = data['y']
-            sample_tensor = torch.tensor(sample, dtype=torch.uint8)
+            sample_tensor = torch.tensor(sample[0:2000, 0:2000,:], dtype=torch.uint8)
             label_tensor = torch.tensor(label, dtype=torch.int64)
 
         return sample_tensor, label_tensor
@@ -70,7 +70,7 @@ def create_unet3d_loader(bucket_name: str, split: str, loader_type:str, batch_si
         uri = f's3://{bucket_name}/{split}'
         aws_region = os.environ['AWS_REGION']
         dataset = S3MapDataset.from_prefix(uri, region=aws_region)
-        loader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, prefetch_factor=prefetch_factor, drop_last=True, shuffle=True)
+        loader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, persistent_workers=True, prefetch_factor=prefetch_factor, drop_last=True, shuffle=True)
         return loader, (time.perf_counter()-start_time)
 
     # The remaining loader types load from S3.
@@ -88,6 +88,6 @@ def create_unet3d_loader(bucket_name: str, split: str, loader_type:str, batch_si
         raise ValueError('loader_type must be either file, list, full, map or s3map.')
 
     if loader is None:
-        loader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, prefetch_factor=prefetch_factor, drop_last=True, shuffle=True)
+        loader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, persistent_workers=True, prefetch_factor=prefetch_factor, drop_last=True, shuffle=True)
 
     return loader, (time.perf_counter()-start_time)

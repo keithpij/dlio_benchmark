@@ -335,10 +335,10 @@ def main():
             'checkpoint': False,
             'checkpoint_bucket': CHECKPOINT_BUCKET,
             'computation_time': 0.636,
-            'epochs': 1,
+            'epochs': 5,
             'model_name': model_name,
             'num_workers': 32,
-            'prefetch_factor': 1,
+            'prefetch_factor': 2,
             'smoke_test_count': smoke_test_count,
             'use_gpu': True,
             }
