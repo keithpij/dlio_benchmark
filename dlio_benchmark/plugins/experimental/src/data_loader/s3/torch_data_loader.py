@@ -1,8 +1,10 @@
-from time import time
+from io import BytesIO
 import logging
 import math
+import numpy as np
 import os
 import pathlib
+from time import time
 import torch
 from torch.utils.data import Dataset, DataLoader, RandomSampler, SequentialSampler
 from torch.utils.data.sampler import Sampler
@@ -172,8 +174,17 @@ class S3TorchDataset(Dataset):
         step = int(math.ceil(self.num_images_read / self.batch_size))
         if index == 0:
             logging.info(f"{utcnow()} Rank {DLIOMPI.get_instance().rank()} reading {index} sample")
-        obj = get_object_from_minio(self.bucket_name, self.object_list[index], self.minio_client)
-        return obj
+        data_bytes = get_object_from_minio(self.bucket_name, self.object_list[index], self.minio_client)
+        bytes_io = BytesIO(data_bytes)
+        with np.load(bytes_io) as data:
+            sample = data['x']
+            label = data['y']
+            sample_tensor = torch.tensor(sample, dtype=torch.uint8)
+            label_tensor = torch.tensor(label, dtype=torch.int64)
+
+        #return sample_tensor, label_tensor
+        #return torch.tensor([1,2,3], dtype=torch.float16)
+        return data_bytes
 
 
 class S3TorchDataLoader(BaseDataLoader):
