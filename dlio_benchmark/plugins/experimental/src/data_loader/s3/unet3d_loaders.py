@@ -17,7 +17,7 @@ from PIL import Image
 from s3torchconnector import S3MapDataset, S3IterableDataset, S3Reader
 from torchvision import datasets
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, IterableDataset
 
 import data_utilities as du
 
@@ -45,6 +45,78 @@ class UNET3DMap(Dataset):
 
         return sample_tensor, label_tensor
         #return torch.tensor([1,2,3], dtype=torch.float16)
+
+
+class UNET3DIter(IterableDataset):
+    '''
+    Iterable dataset that returns samples in a streaming fashion.
+    '''
+
+    def __init__(self, bucket_name: str, object_list, num_samples: int, comm_size: int, rank: int, batch_size: int):
+        logging.info('MyIterableDataset.__init__() called.')
+        self.batch_size = batch_size
+        self.bucket_name = bucket_name
+        self.comm_size = comm_size
+        self.num_samples = num_samples
+        self.object_list = object_list
+        self.rank = rank
+        self.rank_start = 0
+        self.rank_end = 0
+
+    def _get_process_indices(self):
+        '''
+        Get the indicies for this worker within the process.
+        '''
+        # Indecies for the entire process. This is the process created by mpirun.
+        samples_per_rank = int(math.ceil(self.num_samples/self.comm_size)) 
+        self.rank_start = self.rank * samples_per_rank
+        self.rank_end = (self.rank + 1) * samples_per_rank - 1
+        if self.rank_end > self.num_samples - 1:
+            self.rank_end = self.num_samples - 1
+        self.rank_indices = list(range(self.rank_start, self.rank_end + 1))
+
+        # Indecies for this dataloader worker within the process.
+        worker_info = torch.utils.data.get_worker_info()
+        if worker_info is None:  # single-process data loading, return the full iterator
+            self.worker_start = self.rank_start
+            self.worker_end = self.rank_end
+            worker_id = -1
+
+        else:  # in a worker process
+            # split workload
+            worker_id = worker_info.id
+            per_worker = int(math.ceil((self.rank_end - self.rank_start) / float(worker_info.num_workers)))
+            self.worker_start = self.rank_start + (worker_id * per_worker)
+            self.worker_end = min(self.worker_start + per_worker, self.rank_end)
+
+        logging.info(f'Rank: {self.rank} process start: {self.process_start} process end: {self.process_end}.')
+        logging.info(f'Worker ID: {worker_id} worker_start: {self.worker_start} worker_end: {self.worker_end}.')
+
+
+    def __iter__(self):
+        samples = []
+        for index in range(self.worker_start, self.worker_end):
+            if index == 0:
+                logging.info(f'Rank {self.rank} reading {index} sample.')
+            data_bytes = du.get_object_from_minio(self.bucket_name, self.object_list[index], self.minio_client)
+            bytes_io = BytesIO(data_bytes)
+            with np.load(bytes_io) as data:
+                sample = data['x']
+                label = data['y']
+                #sample_tensor = torch.tensor(sample, dtype=torch.uint8)
+                sample_tensor = torch.tensor(sample[0:2000, 0:2000,:], dtype=torch.uint8)
+                label_tensor = torch.tensor(label, dtype=torch.int64)
+                yield sample_tensor, label_tensor
+
+                #samples.append((sample_tensor, label_tensor))
+                #if len(samples) == self.batch_size:
+                #    yield samples
+                #    samples = []
+        
+        #if len(samples):
+            #return samples
+        
+        #return iter(range(iter_start, iter_end))
 
 
 def create_unet3d_loader(bucket_name: str, split: str, loader_type:str, batch_size:int, num_workers: int=1, prefetch_factor: int=1,
@@ -82,9 +154,8 @@ def create_unet3d_loader(bucket_name: str, split: str, loader_type:str, batch_si
     if loader_type == 'map':
         dataset = UNET3DMap(bucket_name, X)
     elif loader_type == 'iter':
-        pass
-        #dataset = UNET3DIterable(bucket_name, X, y, transform=data_transforms)
-        #loader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, shuffle=False)
+        dataset = UNET3DIter(bucket_name, X)
+        loader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, shuffle=False)
     else:
         raise ValueError('loader_type must be either file, list, full, map or s3map.')
 
