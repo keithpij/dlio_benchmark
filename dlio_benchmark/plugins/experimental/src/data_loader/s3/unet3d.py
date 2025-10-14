@@ -21,7 +21,7 @@ import unet3d_loaders as ul
 
 
 # Load the credentials and connection information.
-load_dotenv('unet3d.env')
+load_dotenv('s3.env')
 UNET3D_BUCKET_NAME = os.environ['UNET3D_BUCKET_NAME']
 CHECKPOINT_BUCKET = os.environ['CHECKPOINT_BUCKET']
 #COMPUTATION_TIME = os.environ['COMPUTATION_TIME']
@@ -36,6 +36,8 @@ class TrainUNET3D(TrainingBase):
         '''
         Trains a model with the specified data loader.
         '''
+        logger = du.get_logger()
+
         training_start_time = time.perf_counter()
 
         #model.to(self.device)
@@ -58,7 +60,9 @@ class TrainUNET3D(TrainingBase):
             epoch_byte_size:int = 0
 
             # Batch loop
+            logger.info(f'Starting data retrieval for epoch: {epoch+1} batch: {batch_count+1}.')
             for samples, labels in loader:
+                logger.info(f'Data retrieval complete for epoch: {epoch+1} batch: {batch_count+1}.')
                 # IO time for the batch.
                 batch_io_time = time.perf_counter() - io_start
                 # Iterable datasets do not have a __len__ method since batches are determined dynamically.
@@ -114,6 +118,7 @@ class TrainUNET3D(TrainingBase):
 
                 # Need to set this here for the next loop.
                 io_start = time.perf_counter()
+                logger.info(f'Starting data retrieval for epoch: {epoch+1} batch: {batch_count+1}.')
 
             self.logger.info(f'Epoch {epoch+1} - ' \
                              f'Compute time: {epoch_compute_time:.4f} - ' \
@@ -276,7 +281,11 @@ def main():
     '''
     Main function that processes the arguments sent to this module via the command line.
     '''
-    parser = argparse.ArgumentParser(description='ML Command line interface.')
+    # Create the logger.
+    du.create_logger(use_file=True)
+
+    # Setup the command line options.
+    parser = argparse.ArgumentParser(description='Unet3d Command line interface.')
     parser.add_argument('-lb', '--list_buckets', help='List all buckets.', action='store_true')
     parser.add_argument('-lo', '--list_objects', help='List all objects in the specified bucket.')
     parser.add_argument('-eb', '--empty_bucket', help='Remove all objects in the specified bucket.')
@@ -335,10 +344,10 @@ def main():
             'checkpoint': False,
             'checkpoint_bucket': CHECKPOINT_BUCKET,
             'computation_time': 0.636,
-            'epochs': 5,
+            'epochs': 2,
             'model_name': model_name,
-            'num_workers': 32,
-            'prefetch_factor': 4,
+            'num_workers': 4, #os.cpu_count(),   # Use the number of CPUs available on the system.
+            'prefetch_factor': None,
             'smoke_test_count': smoke_test_count,
             'use_gpu': True,
             }

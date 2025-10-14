@@ -41,7 +41,7 @@ class TrainingBase:
     Base class for training and testing models locally and distributed.
     '''
     def __init__(self, parameters: Dict[str, Any]):
-        self.logger = du.create_logger()
+        self.logger = du.get_logger()
         self.parameters = parameters
         self.training_metrics = RunMetrics()
         self.testing_metrics = RunMetrics()

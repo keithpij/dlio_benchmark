@@ -20,8 +20,8 @@ from dotenv import load_dotenv
 from minio import Minio
 from minio.error import S3Error
 
-load_dotenv(os.path.join(pathlib.Path(__file__).resolve().parent, 'dlio.env'))
-#load_dotenv('/home/minio/dlio_benchmark/dlio_benchmark/plugins/experimental/src/data_loader/s3/dlio.env')
+#load_dotenv(os.path.join(pathlib.Path(__file__).resolve().parent, 'dlio.env'))
+load_dotenv('/home/keithpij/dlio_benchmark/dlio_benchmark/plugins/experimental/src/data_loader/s3/s3.env')
 BUCKET_NAME = os.environ['BUCKET_NAME']
 TRAINING_PATH = os.environ['TRAINING_PATH']
 EVALUATIUON_PATH = os.environ['EVALUATION_PATH']

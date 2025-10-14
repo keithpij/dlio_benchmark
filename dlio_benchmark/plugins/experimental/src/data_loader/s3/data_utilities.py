@@ -26,9 +26,14 @@ def create_logger(use_file: bool=False) -> logging.Logger:
     Create a logger for the application.
     '''
     logger = logging.getLogger(LOGGER_NAME)
-    logger.handlers = []
+    #logger.handlers = []
 
-    #if not logger.hasHandlers(): 
+    #if not logger.hasHandlers():
+    #    brah
+
+    if logger.hasHandlers():
+        raise ValueError('Logger has already been created. Call get_logger() to get the logger instance.')
+
     logger.setLevel(LOGGING_LEVEL)
     formatter = logging.Formatter('%(process)s %(asctime)s | %(levelname)s | %(message)s')
 
@@ -46,11 +51,22 @@ def create_logger(use_file: bool=False) -> logging.Logger:
     return logger
 
 
+def get_logger() -> logging.Logger:
+    '''
+    Get the logger for the application.
+    '''
+    logger = logging.getLogger(LOGGER_NAME)
+    if not logger.hasHandlers(): 
+        raise ValueError('Logger has not been created. Call create_logger() first.')
+
+    return logger
+
+
 def empty_bucket(bucket_name: str) -> int:
     '''
     Removes all objects from the specified bucket.
     '''
-    logger = create_logger()
+    logger = get_logger()
     url, access_key, secret_key, secure = get_minio_credentials()
 
     try:
@@ -83,7 +99,7 @@ def create_object_inventory(bucket_name: str, verbose: bool=False) -> Tuple[str,
     Creates an object of JSON format that contains an inventory of all objects 
     in the specified bucket.
     '''
-    logger = create_logger()
+    logger = get_logger()
     inventory_object_name = bucket_name + '-inventory.json'
 
     try:
@@ -143,7 +159,7 @@ def get_json_object(bucket_name: str, object_name: str) -> List[Any]:
     '''
     Get the object inventory object for the specified bucket.
     '''
-    logger = create_logger()
+    logger = get_logger()
 
     # Get data of an object.
     try:
@@ -195,7 +211,7 @@ def get_object_inventory(bucket_name: str) -> List[Any]:
 
 
 def get_mnist_tar_list(bucket_name: str, split: str='train', smoke_test_count: int=0) -> List[str]:
-    logger = create_logger()
+    logger = get_logger()
     logger.debug(f'get_mnist_tar_lists called. bucket_name: {bucket_name} smoke_test_count: {smoke_test_count}')
 
     # Get a list of objects and split them according to train and test.    
@@ -207,7 +223,7 @@ def get_mnist_tar_list(bucket_name: str, split: str='train', smoke_test_count: i
 
 
 def get_mnist_list(bucket_name: str, split: str='train', smoke_test_count: int=0) -> Tuple[List[str], List[int]]:
-    logger = create_logger()
+    logger = get_logger()
     logger.debug(f'get_mnist_lists called. bucket_name: {bucket_name} smoke_test_count: {smoke_test_count}')
 
     # Get a list of objects and split them according to train and test.    
@@ -227,8 +243,8 @@ def get_mnist_list(bucket_name: str, split: str='train', smoke_test_count: int=0
     return X, y
 
 
-def get_unet3d_list(bucket_name: str, split: str='train', smoke_test_count: int=0) -> Tuple[List[str], List[int]]:
-    logger = create_logger()
+def get_unet3d_list(bucket_name: str, split: str='train', smoke_test_count: int=0, load_multiplier: int=1) -> Tuple[List[str], List[int]]:
+    logger = get_logger()
     logger.debug(f'get_unet3d_list called. bucket_name: {bucket_name} smoke_test_count: {smoke_test_count}')
 
     # Get a list of objects and split them according to train and test.    
@@ -240,6 +256,12 @@ def get_unet3d_list(bucket_name: str, split: str='train', smoke_test_count: int=
 
     if smoke_test_count > 0:
         X = X[0:smoke_test_count]
+
+    if load_multiplier > 1:
+        copy_X = X.copy()
+        for i in range(load_multiplier-1):
+            X.extend(copy_X)
+        logger.info(f'Increased dataset size by a factor of {load_multiplier} to {len(X)} samples.')
 
     return X
 
@@ -271,7 +293,7 @@ def get_minio_credentials() -> Tuple[str, str, str, bool]:
 
 
 def get_bucket_list() -> List[str]:
-    logger = create_logger()
+    logger = get_logger()
     
     url, access_key, secret_key, secure = get_minio_credentials()
 
@@ -299,7 +321,7 @@ def get_bucket_list() -> List[str]:
 
 def load_mnist_to_minio(bucket_name: str) -> Tuple[int,int]:
     ''' Download and load the training and test samples.'''
-    logger = create_logger()
+    logger = get_logger()
 
     train = datasets.MNIST('./mnistdata/', download=True, train=True)
     test = datasets.MNIST('./mnistdata/', download=True, train=False)
@@ -340,7 +362,7 @@ def load_mnist_to_minio(bucket_name: str) -> Tuple[int,int]:
 
 def load_mnist_tar_to_minio(bucket_name: str, split: str, objects_per_tar: int) -> Tuple[int, int]:
     ''' Download, tar, and load the training and test samples.'''
-    logger = create_logger()
+    logger = get_logger()
     content_type = 'application/octet-stream' # 'application/binary'
 
     if split == 'train':
@@ -409,7 +431,7 @@ def put_image_to_minio(bucket_name: str, object_name: str, image: PIL.Image.Imag
     '''
     Puts an image byte stream to MinIO.
     '''
-    logger = create_logger()
+    logger = get_logger()
 
 
     try:
@@ -465,7 +487,7 @@ def split_train_test(objects: List[str]) -> Tuple[List[str], List[int], List[str
 
 
 def preprocess_batch(batch: Dict[str, str], bucket_name: str) -> Dict[str, np.ndarray]:
-    logger = create_logger()
+    logger = get_logger()
     logger.debug(f'preprocess_batch called. bucket_name: {bucket_name}, batch_size: {len(batch["X"])}')
 
     url, access_key, secret_key, secure = get_minio_credentials()
@@ -500,7 +522,7 @@ def preprocess_batch(batch: Dict[str, str], bucket_name: str) -> Dict[str, np.nd
 
 
 def get_images_from_minio(bucket_name: str, object_names: Tuple[str]) -> List[PIL.Image.Image]:
-    logger = create_logger()
+    logger = get_logger()
 
     url, access_key, secret_key, secure = get_minio_credentials()
 
@@ -533,7 +555,7 @@ def get_images_from_minio(bucket_name: str, object_names: Tuple[str]) -> List[PI
 
 
 def get_image_from_minio(bucket_name: str, object_name: str, client: Optional[Union[Minio, None]]=None) -> PIL.Image.Image:
-    logger = create_logger()
+    logger = get_logger()
 
     url, access_key, secret_key, secure = get_minio_credentials()
 
@@ -563,7 +585,7 @@ def get_image_from_minio(bucket_name: str, object_name: str, client: Optional[Un
 
 
 def get_object_from_minio(bucket_name: str, object_name: str, client: Optional[Union[Minio, None]]=None) -> bytes:
-    logger = create_logger()
+    logger = get_logger()
 
     url, access_key, secret_key, secure = get_minio_credentials()
 
@@ -594,7 +616,7 @@ def get_object_list(bucket_name: str, prefix: Optional[Union[str, None]]=None) -
     '''
     Gets a list of objects from a bucket.
     '''
-    logger = create_logger()
+    logger = get_logger()
 
     url, access_key, secret_key, secure = get_minio_credentials()
 
