@@ -52,7 +52,6 @@ class UNET3DIter(IterableDataset):
     '''
     Iterable dataset that returns samples in a streaming fashion.
     '''
-
     def __init__(self, bucket_name: str, object_list, rank: int=0, comm_size: int=1):
         self.logger = du.get_logger()
         self.logger.info('UNET3DIter.__init__() called.')
@@ -76,12 +75,10 @@ class UNET3DIter(IterableDataset):
             self.rank_end = (self.rank + 1) * samples_per_rank - 1
             if self.rank_end > self.num_samples - 1:
                 self.rank_end = self.num_samples - 1
-            #self.rank_indices = list(range(self.rank_start, self.rank_end + 1))
 
         else: # rank 0 meaning that distributed training is not being used.
             self.rank_start = 0
             self.rank_end = self.num_samples - 1
-            #self.rank_indices = list(range(self.num_samples))
 
         # Indecies for this dataloader worker.
         worker_info = torch.utils.data.get_worker_info()
@@ -97,13 +94,12 @@ class UNET3DIter(IterableDataset):
             self.worker_start = self.rank_start + (worker_id * per_worker)
             self.worker_end = min(self.worker_start + per_worker, self.rank_end)
 
-        #self.logger.info(f'Rank: {self.rank} start: {self.rank_start} end: {self.rank_end}.')
         self.logger.info(f'Rank: {self.rank} Worker ID: {worker_id} start: {self.worker_start} end: {self.worker_end}.')
 
     def __iter__(self):
         self._get_worker_indices()
 
-        samples = []
+        yield_list = []
         for index in range(self.worker_start, self.worker_end):
             if index == 0:
                 self.logger.info(f'Rank {self.rank} reading {index} sample.')
@@ -111,24 +107,18 @@ class UNET3DIter(IterableDataset):
             data_bytes = du.get_object_from_minio(self.bucket_name, self.object_list[index])
             bytes_io = BytesIO(data_bytes)
             with np.load(bytes_io) as data:
-                sample = data['x']
-                label = data['y']
-                #sample_tensor = torch.tensor(sample, dtype=torch.uint8)
-                sample_tensor = torch.tensor(sample[0:2000, 0:2000,:], dtype=torch.uint8)
-                label_tensor = torch.tensor(label, dtype=torch.int64)
+                samples = data['x']
+                labels = data['y']
+                for i in range(labels.shape[0]):
+                    sample = samples[0:2000, 0:2000, i]
+                    label = labels[i]
+                    sample_tensor = torch.tensor(sample[0:2000, 0:2000], dtype=torch.uint8)
+                    label_tensor = torch.tensor(label, dtype=torch.int64)
+                    #yield_list.append((sample_tensor, label_tensor))
+                    yield sample_tensor, label_tensor
 
             self.logger.info(f'{self.object_list[index]} retrieved in {time.perf_counter()-start}.')
-            yield sample_tensor, label_tensor
-
-            #samples.append((sample_tensor, label_tensor))
-            #if len(samples) == self.batch_size:
-            #    yield samples
-            #    samples = []
-        
-        #if len(samples):
-            #return samples
-        
-        #return iter(range(iter_start, iter_end))
+            #yield iter(yield_list)
 
 
 def create_unet3d_loader(bucket_name: str, split: str, loader_type:str, batch_size:int, num_workers: int=1, prefetch_factor: int=1,

@@ -288,7 +288,7 @@ def main():
     parser = argparse.ArgumentParser(description='Unet3d Command line interface.')
     parser.add_argument('-lb', '--list_buckets', help='List all buckets.', action='store_true')
     parser.add_argument('-lo', '--list_objects', help='List all objects in the specified bucket.')
-    parser.add_argument('-eb', '--empty_bucket', help='Remove all objects in the specified bucket.')
+    parser.add_argument('-eb', '--empty_bucket', help='Remove all objects in the specified bucket.', action='store_true')
     parser.add_argument('-train', '--train', help='Train the UNET3D model.', action='store_true')
     parser.add_argument('-lt', '--loader_type', help='Type of loader to use for loading training and test sets ' \
                         '(map, iter, s3map or s3iter).')
@@ -299,7 +299,7 @@ def main():
     args = parser.parse_args()
 
     if args.empty_bucket:
-        count = du.empty_bucket(args.empty_bucket)
+        count = du.empty_bucket(UNET3D_BUCKET_NAME)
         print(f'Number of objects removed in {args.empty_bucket}:', count)
     if args.list_buckets:
         bucket_list = du.get_bucket_list()

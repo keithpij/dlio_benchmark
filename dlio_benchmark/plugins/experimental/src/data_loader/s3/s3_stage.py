@@ -9,7 +9,7 @@ from minio.error import S3Error
 
 import data_utilities as du
 
-load_dotenv('dlio.env')
+load_dotenv('s3.env')
 DATASET_FOLDER = os.environ['DATASET_FOLDER'] #'/home/keithpij/dlio_benchmark/data/unet3d' 
 BUCKET_NAME = os.environ['BUCKET_NAME']
 

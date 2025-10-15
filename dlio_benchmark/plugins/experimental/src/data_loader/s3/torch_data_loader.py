@@ -11,7 +11,7 @@ from torch.utils.data.sampler import Sampler
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from dlio_benchmark.common.constants import MODULE_DATA_LOADER
-from dlio_benchmark.common.enumerations import Shuffle, DatasetType, DataLoaderType
+from dlio_benchmark.common.enumerations import Shuffle, DatasetType, DataLoaderType, DataLoaderSampler
 from dlio_benchmark.data_loader.base_data_loader import BaseDataLoader
 from dlio_benchmark.reader.reader_factory import ReaderFactory
 from dlio_benchmark.utils.utility import utcnow, DLIOMPI
@@ -148,17 +148,11 @@ class S3MapDataset(Dataset):
     This dataset expects one sample per object.
     '''
     @dlp.log_init
-    def __init__(self, bucket_name, object_list, format_type, dataset_type, epoch, num_samples, num_workers, batch_size):
+    def __init__(self, bucket_name, object_list, num_samples):
         self.bucket_name = bucket_name
         self.object_list = object_list
-        self.format_type = format_type
-        self.dataset_type = dataset_type
-        self.epoch = epoch
         self.num_samples = num_samples
         self.num_images_read = 0
-        self.batch_size = batch_size
-        if num_workers == 0:
-            self.worker_init(-1)
     
         url, access_key, secret_key, secure = get_minio_credentials()
 
@@ -166,7 +160,7 @@ class S3MapDataset(Dataset):
 
         logging.info(f'Rank {DLIOMPI.get_instance().rank()} creating Minio client to {url}')
 
-        self.minio_client = Minio(url,  # host.docker.internal
+        self.minio_client = Minio(url,
                     access_key,  
                     secret_key, 
                     secure=secure)
@@ -201,31 +195,33 @@ class S3IterDataset(IterableDataset):
     '''
     Iterable dataset that returns samples in a streaming fashion.
     '''
-
-    def __init__(self, bucket_name: str, object_list, num_samples: int, comm_size: int, rank: int, batch_size: int):
-        logging.info('MyIterableDataset.__init__() called.')
-        self.batch_size = batch_size
+    def __init__(self, bucket_name: str, object_list, rank: int=0, comm_size: int=1):
+        logging.info('UNET3DIter.__init__() called.')
         self.bucket_name = bucket_name
         self.comm_size = comm_size
-        self.num_samples = num_samples
+        self.num_samples = len(object_list)
         self.object_list = object_list
         self.rank = rank
         self.rank_start = 0
         self.rank_end = 0
 
-    def _get_process_indices(self):
+    def _get_worker_indices(self):
         '''
         Get the indicies for this worker within the process.
         '''
-        # Indecies for the entire process. This is the process created by mpirun.
-        samples_per_rank = int(math.ceil(self.num_samples/self.comm_size)) 
-        self.rank_start = self.rank * samples_per_rank
-        self.rank_end = (self.rank + 1) * samples_per_rank - 1
-        if self.rank_end > self.num_samples - 1:
-            self.rank_end = self.num_samples - 1
-        self.rank_indices = list(range(self.rank_start, self.rank_end + 1))
+        # Calculate the indecies for each worker within a rank.
+        if self.rank: # If renak is non-zero then distributed training is being used or emulated.
+            samples_per_rank = int(math.ceil(self.num_samples/self.comm_size)) 
+            self.rank_start = self.rank * samples_per_rank
+            self.rank_end = (self.rank + 1) * samples_per_rank - 1
+            if self.rank_end > self.num_samples - 1:
+                self.rank_end = self.num_samples - 1
 
-        # Indecies for this dataloader worker within the process.
+        else: # rank 0 meaning that distributed training is not being used.
+            self.rank_start = 0
+            self.rank_end = self.num_samples - 1
+
+        # Indecies for this dataloader worker.
         worker_info = torch.utils.data.get_worker_info()
         if worker_info is None:  # single-process data loading, return the full iterator
             self.worker_start = self.rank_start
@@ -239,34 +235,31 @@ class S3IterDataset(IterableDataset):
             self.worker_start = self.rank_start + (worker_id * per_worker)
             self.worker_end = min(self.worker_start + per_worker, self.rank_end)
 
-        logging.info(f'Rank: {self.rank} process start: {self.process_start} process end: {self.process_end}.')
-        logging.info(f'Worker ID: {worker_id} worker_start: {self.worker_start} worker_end: {self.worker_end}.')
-
+        logging.info(f'Rank: {self.rank} Worker ID: {worker_id} start: {self.worker_start} end: {self.worker_end}.')
 
     def __iter__(self):
-        samples = []
+        self._get_worker_indices()
+
+        yield_list = []
         for index in range(self.worker_start, self.worker_end):
             if index == 0:
-                logging.info(f"{utcnow()} Rank {DLIOMPI.get_instance().rank()} reading {index} sample")
-            data_bytes = get_object_from_minio(self.bucket_name, self.object_list[index], self.minio_client)
+                logging.info(f'Rank {self.rank} reading {index} sample.')
+            #start = time.perf_counter()
+            data_bytes = get_object_from_minio(self.bucket_name, self.object_list[index])
             bytes_io = BytesIO(data_bytes)
             with np.load(bytes_io) as data:
-                sample = data['x']
-                label = data['y']
-                #sample_tensor = torch.tensor(sample, dtype=torch.uint8)
-                sample_tensor = torch.tensor(sample[0:2000, 0:2000,:], dtype=torch.uint8)
-                label_tensor = torch.tensor(label, dtype=torch.int64)
-                yield sample_tensor, label_tensor
+                samples = data['x']
+                labels = data['y']
+                for i in range(labels.shape[0]):
+                    sample = samples[0:2000, 0:2000, i]
+                    label = labels[i]
+                    sample_tensor = torch.tensor(sample[0:2000, 0:2000], dtype=torch.uint8)
+                    label_tensor = torch.tensor(label, dtype=torch.int64)
+                    #yield_list.append((sample_tensor, label_tensor))
+                    yield sample_tensor, label_tensor
 
-                #samples.append((sample_tensor, label_tensor))
-                #if len(samples) == self.batch_size:
-                #    yield samples
-                #    samples = []
-        
-        #if len(samples):
-            #return samples
-        
-        #return iter(range(iter_start, iter_end))
+            #logging.info(f'{self.object_list[index]} retrieved in {time.perf_counter()-start}.')
+            #yield iter(yield_list)
 
 
 class S3TorchDataLoader(BaseDataLoader):
@@ -288,20 +281,31 @@ class S3TorchDataLoader(BaseDataLoader):
             self._args.total_samples_eval = len(object_list)
             logging.info(f'{utcnow()} Rank {self._args.my_rank} reading validation data list from bucket {BUCKET_NAME} with {self._args.total_samples_eval} samples')
 
-        logging.info(f"{utcnow()} Setting up rank {self._args.my_rank} dataloader with {self._args.read_threads} workers, prefetch: {self._args.prefetch_size}.")
-        sampler = dlio_sampler(self._args.my_rank, self._args.comm_size, self.num_samples, self._args.epochs)
-        dataset = S3MapDataset(BUCKET_NAME, object_list, self.format_type, self.dataset_type, self.epoch_number, num_samples, self._args.read_threads, batch_size)
-        self._dataloader = DataLoader(dataset,
-                                batch_size=batch_size,
-                                sampler=sampler,
-                                num_workers=self._args.read_threads,
-                                pin_memory=True,
-                                drop_last=True,
-                                worker_init_fn=dataset.worker_init,
-                                persistent_workers=True,
-                                prefetch_factor=self._args.prefetch_size) #prefetch_factor if prefetch_factor > 0 else 2)  # 2 is the default value
+        if self._args.data_loader_sampler == DataLoaderSampler.INDEX:
+            logging.info(f"{utcnow()} Setting up rank {self._args.my_rank} dataloader with {self._args.read_threads} workers, prefetch: {self._args.prefetch_size}.")
+            sampler = dlio_sampler(self._args.my_rank, self._args.comm_size, self.num_samples, self._args.epochs)
+            dataset = S3MapDataset(BUCKET_NAME, object_list, self.format_type, self.dataset_type, num_samples)
+            self._dataloader = DataLoader(dataset,
+                                    batch_size=batch_size,
+                                    sampler=sampler,
+                                    num_workers=self._args.read_threads,
+                                    pin_memory=True,
+                                    drop_last=True,
+                                    worker_init_fn=dataset.worker_init,
+                                    persistent_workers=True,
+                                    prefetch_factor=self._args.prefetch_size) #prefetch_factor if prefetch_factor > 0 else 2)  # 2 is the default value
 
-        logging.info(f"{utcnow()} Rank {self._args.my_rank} will read {len(self._dataloader) * batch_size} files")
+            logging.info(f"{utcnow()} Rank {self._args.my_rank} will read {len(self._dataloader) * batch_size} files")
+
+        else:  #Iterative
+            dataset = S3IterDataset(BUCKET_NAME, object_list, self._args.my_rank, self._args.comm_size)
+            self._dataloader = DataLoader(dataset,
+                                    batch_size=batch_size,
+                                    num_workers=self._args.read_threads,
+                                    pin_memory=True,
+                                    drop_last=True,
+                                    persistent_workers=True,
+                                    prefetch_factor=self._args.prefetch_size)
 
     @dlp.log
     def next(self):
