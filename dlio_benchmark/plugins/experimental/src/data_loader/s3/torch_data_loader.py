@@ -167,7 +167,7 @@ class S3MapDataset(Dataset):
 
     @dlp.log
     def worker_init(self, worker_id):
-        logging.info(f"{utcnow()} worker initialized {worker_id} with format {self.format_type}")
+        logging.info(f'{utcnow()} worker initialized {worker_id}.')
 
     @dlp.log
     def __len__(self):
@@ -176,7 +176,7 @@ class S3MapDataset(Dataset):
     @dlp.log
     def __getitem__(self, index):
         self.num_images_read += 1
-        step = int(math.ceil(self.num_images_read / self.batch_size))
+        #step = int(math.ceil(self.num_images_read / self.batch_size))
         if index == 0:
             logging.info(f"{utcnow()} Rank {DLIOMPI.get_instance().rank()} reading {index} sample")
         data_bytes = get_object_from_minio(self.bucket_name, self.object_list[index], self.minio_client)
@@ -284,7 +284,7 @@ class S3TorchDataLoader(BaseDataLoader):
         if self._args.data_loader_sampler == DataLoaderSampler.INDEX:
             logging.info(f"{utcnow()} Setting up rank {self._args.my_rank} dataloader with {self._args.read_threads} workers, prefetch: {self._args.prefetch_size}.")
             sampler = dlio_sampler(self._args.my_rank, self._args.comm_size, self.num_samples, self._args.epochs)
-            dataset = S3MapDataset(BUCKET_NAME, object_list, self.format_type, self.dataset_type, num_samples)
+            dataset = S3MapDataset(BUCKET_NAME, object_list, num_samples)
             self._dataloader = DataLoader(dataset,
                                     batch_size=batch_size,
                                     sampler=sampler,
@@ -304,7 +304,7 @@ class S3TorchDataLoader(BaseDataLoader):
                                     num_workers=self._args.read_threads,
                                     pin_memory=True,
                                     drop_last=True,
-                                    persistent_workers=True,
+                                    persistent_workers=False,
                                     prefetch_factor=self._args.prefetch_size)
 
     @dlp.log
