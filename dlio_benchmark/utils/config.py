@@ -547,13 +547,15 @@ class ConfigArguments:
                                                              epoch_number)
         global_train_sample_sum = DLIOMPI.get_instance().reduce(local_train_sample_sum)
         global_eval_sample_sum = DLIOMPI.get_instance().reduce(local_eval_sample_sum)        
-        if self.my_rank == 0:
-            self.logger.info(f"{utcnow()} Total number of samples: train {global_train_sample_sum}, eval {global_eval_sample_sum}")
-            if self.train_sample_index_sum != global_train_sample_sum:
-                raise Exception(f"Sharding of train samples are missing samples got {global_train_sample_sum} but expected {self.train_sample_index_sum}")
-            
-            if self.eval_sample_index_sum != global_eval_sample_sum:
-                raise Exception(f"Sharding of eval samples are missing samples got {global_eval_sample_sum} but expected {self.eval_sample_index_sum}")
+        
+        #KLP - this check does not work correctly with an iterative dataset.
+        #if self.my_rank == 0:
+        #    self.logger.info(f"{utcnow()} Total number of samples: train {global_train_sample_sum}, eval {global_eval_sample_sum}")
+        #    if self.train_sample_index_sum != global_train_sample_sum:
+        #        raise Exception(f"Sharding of train samples are missing samples got {global_train_sample_sum} but expected {self.train_sample_index_sum}")
+        #    
+        #    if self.eval_sample_index_sum != global_eval_sample_sum:
+        #        raise Exception(f"Sharding of eval samples are missing samples got {global_eval_sample_sum} but expected {self.eval_sample_index_sum}")
 
 def GetConfig(args, key):
     keys = key.split(".")

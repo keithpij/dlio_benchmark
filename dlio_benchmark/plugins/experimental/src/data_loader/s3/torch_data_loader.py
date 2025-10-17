@@ -195,7 +195,7 @@ class S3IterDataset(IterableDataset):
     '''
     Iterable dataset that returns samples in a streaming fashion.
     '''
-    def __init__(self, bucket_name: str, object_list, rank: int=0, comm_size: int=1):
+    def __init__(self, bucket_name: str, object_list, rank: int=-1, comm_size: int=1):
         logging.info('UNET3DIter.__init__() called.')
         self.bucket_name = bucket_name
         self.comm_size = comm_size
@@ -210,7 +210,7 @@ class S3IterDataset(IterableDataset):
         Get the indicies for this worker within the process.
         '''
         # Calculate the indecies for each worker within a rank.
-        if self.rank: # If renak is non-zero then distributed training is being used or emulated.
+        if self.rank > -1: # If renak is greater than -1 then distributed training is being used or emulated.
             samples_per_rank = int(math.ceil(self.num_samples/self.comm_size)) 
             self.rank_start = self.rank * samples_per_rank
             self.rank_end = (self.rank + 1) * samples_per_rank - 1
@@ -232,6 +232,7 @@ class S3IterDataset(IterableDataset):
             # split workload
             worker_id = worker_info.id
             per_worker = int(math.ceil((self.rank_end - self.rank_start) / float(worker_info.num_workers)))
+            logging.info(f'Rank: {self.rank} Worker ID: {worker_id} num_workers: {worker_info.num_workers} rank_start {self.rank_start} rank_end {self.rank_end} per_worker {per_worker}.')
             self.worker_start = self.rank_start + (worker_id * per_worker)
             self.worker_end = min(self.worker_start + per_worker, self.rank_end)
 
@@ -245,6 +246,7 @@ class S3IterDataset(IterableDataset):
             if index == 0:
                 logging.info(f'Rank {self.rank} reading {index} sample.')
             #start = time.perf_counter()
+            logging.info(f'Rank {self.rank} retrieving object {self.object_list[index]}.')
             data_bytes = get_object_from_minio(self.bucket_name, self.object_list[index])
             bytes_io = BytesIO(data_bytes)
             with np.load(bytes_io) as data:
