@@ -309,14 +309,29 @@ class S3TorchDataLoader(BaseDataLoader):
                                     persistent_workers=False,
                                     prefetch_factor=self._args.prefetch_size)
 
+    #@dlp.log
+    #def next(self):
+    #    super().next()
+    #    total = self._args.training_steps if self.dataset_type is DatasetType.TRAIN else self._args.eval_steps
+    #    logging.info(f"{utcnow()} Rank {self._args.my_rank} should read {total} batches")
+    #    for batch in self._dataloader:
+    #        yield batch
+
     @dlp.log
     def next(self):
         super().next()
         total = self._args.training_steps if self.dataset_type is DatasetType.TRAIN else self._args.eval_steps
-        logging.info(f"{utcnow()} Rank {self._args.my_rank} should read {total} batches")
-        for batch in self._dataloader:
+        self.logger.debug(f"{utcnow()} Rank {self._args.my_rank} should read {total} batches")
+        step = 1
+        # TODO: @hariharan-devarajan: change below line when we bump the dftracer version to 
+        #       `dlp.iter(self._dataset, name=self.next.__qualname__)`
+        for batch in dlp.iter(self._dataset):
+            dlp.update(step = step)
+            step += 1
             yield batch
-
+        self.epoch_number += 1
+        dlp.update(epoch=self.epoch_number)
+    
     @dlp.log
     def finalize(self):
         pass
