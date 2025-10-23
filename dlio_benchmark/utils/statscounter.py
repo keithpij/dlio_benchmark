@@ -205,6 +205,11 @@ class StatsCounter(object):
                 metric="Averaged metric over all steps/epochs\n[METRIC] ==========================================================\n"
                 metric = metric + f"[METRIC] Number of Simulated Accelerators: {self.comm_size} \n"
                 if self.args.do_train:
+                    # KLP added epoch details.
+                    self.logger.info('Accelerator utilization:')
+                    self.logger.info(train_au)
+                    self.logger.info('Throughput:')
+                    self.logger.info(train_throughput)
                     metric = metric + f"[METRIC] Training Accelerator Utilization [AU] (%): {np.mean(train_au):.4f} ({np.std(train_au):.4f})\n"
                     metric = metric + f"[METRIC] Training Throughput (samples/second): {np.mean(train_throughput):.4f} ({np.std(train_throughput):.4f})\n"
                     metric = metric + f"[METRIC] Training I/O Throughput (MB/second): {np.mean(train_throughput)*self.record_size/1024/1024:.4f} ({np.std(train_throughput)*self.record_size/1024/1024:.4f})\n"

@@ -277,6 +277,28 @@ def multi_process(object_list: List[str], num_workers: int) -> Dict[int, float]:
     return wall_clock_time, objects_per_worker, final_results
 
 
+def batch_test(parameters: Dict[str, Any], loader_type: str):
+    '''
+    Set up the model and the data loader for local training.
+    '''
+    # Create the training loader.
+    split = 'train'
+    train_loader, load_time = ul.create_unet3d_loader(parameters['bucket_name'], split,
+                                                        loader_type, parameters['batch_size'],
+                                                        num_workers=parameters['num_workers'],
+                                                        prefetch_factor=parameters['prefetch_factor'],
+                                                        smoke_test_count=parameters['smoke_test_count'])
+
+    def next():
+        for batch in train_loader:
+            yield batch
+
+    batch_count:int = 0
+    for batch in train_loader:
+        batch_count += 1
+        print(f'Batch {batch_count} retrieved.')
+
+
 def main():
     '''
     Main function that processes the arguments sent to this module via the command line.
@@ -295,6 +317,7 @@ def main():
 
     parser.add_argument('-sp', '--single_process', help='Single process test.')
     parser.add_argument('-mp', '--multi_process', help='Multi-process test.')
+    parser.add_argument('-bt', '--batch_test', help='Batch test.', action='store_true')
 
     args = parser.parse_args()
 
@@ -333,6 +356,21 @@ def main():
         print(f'Total dataset size (in bytes) = {total_bytes / 1e9:.4f}')
         print(f'Bandwidth: {((total_bytes/wall_clock_time) * 8) / 1e9:.4f} Gbps') # Gbps
         print(f'Number of objects: {len(object_list)}')
+
+    if args.batch_test:
+        smoke_test_count = 0
+        parameters = {
+            'batch_size': 7,
+            'bucket_name': UNET3D_BUCKET_NAME,
+            'checkpoint': False,
+            'checkpoint_bucket': CHECKPOINT_BUCKET,
+            'computation_time': 0.636,
+            'epochs': 2,
+            'num_workers': 4, #os.cpu_count(),   # Use the number of CPUs available on the system.
+            'prefetch_factor': 2,
+            'smoke_test_count': smoke_test_count,
+            }
+        batch_test(parameters, args.loader_type)
 
     if args.train:
         # Hyperparameters

@@ -52,7 +52,7 @@ class UNET3DIter(IterableDataset):
     '''
     Iterable dataset that returns samples in a streaming fashion.
     '''
-    def __init__(self, bucket_name: str, object_list, rank: int=0, comm_size: int=1):
+    def __init__(self, bucket_name: str, object_list, rank: int=-1, comm_size: int=1):
         self.logger = du.get_logger()
         self.logger.info('UNET3DIter.__init__() called.')
         #self.batch_size = batch_size
@@ -69,16 +69,18 @@ class UNET3DIter(IterableDataset):
         Get the indicies for this worker within the process.
         '''
         # Calculate the indecies for each worker within a rank.
-        if self.rank: # If renak is non-zero then distributed training is being used or emulated.
+        if self.rank > -1: # If rank is greater than -1 then distributed training is being used or emulated.
             samples_per_rank = int(math.ceil(self.num_samples/self.comm_size)) 
             self.rank_start = self.rank * samples_per_rank
-            self.rank_end = (self.rank + 1) * samples_per_rank - 1
-            if self.rank_end > self.num_samples - 1:
-                self.rank_end = self.num_samples - 1
+            self.rank_end = (self.rank + 1) * samples_per_rank #- 1
+            #if self.rank_end > self.num_samples - 1:
+            #    self.rank_end = self.num_samples - 1
+            if self.rank_end == (self.num_samples - 1):
+                self.rank_end = self.num_samples
 
         else: # rank 0 meaning that distributed training is not being used.
             self.rank_start = 0
-            self.rank_end = self.num_samples - 1
+            self.rank_end = self.num_samples
 
         # Indecies for this dataloader worker.
         worker_info = torch.utils.data.get_worker_info()
@@ -151,7 +153,10 @@ def create_unet3d_loader(bucket_name: str, split: str, loader_type:str, batch_si
     # The remaining loader types load from S3.
     # Get a list of objects for either train or val.
     X = du.get_unet3d_list(bucket_name, split, smoke_test_count, load_multiplier=1)
+    X = sorted(X)
+    print(f'Number of objects in {split} set: {len(X)}')
 
+     # Create the dataset and data loader.
     loader = None
     if loader_type == 'map':
         dataset = UNET3DMap(bucket_name, X)
@@ -162,6 +167,6 @@ def create_unet3d_loader(bucket_name: str, split: str, loader_type:str, batch_si
 
     if loader is None:
         loader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, persistent_workers=True, prefetch_factor=prefetch_factor,
-                            drop_last=True, shuffle=False)
+                            drop_last=False, shuffle=False)
 
     return loader, (time.perf_counter()-start_time)

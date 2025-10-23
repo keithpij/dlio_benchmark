@@ -21,7 +21,8 @@ from minio import Minio
 from minio.error import S3Error
 
 #load_dotenv(os.path.join(pathlib.Path(__file__).resolve().parent, 'dlio.env'))
-load_dotenv('/home/keithpij/dlio_benchmark/dlio_benchmark/plugins/experimental/src/data_loader/s3/s3.env')
+#load_dotenv('/home/keithpij/dlio_benchmark/dlio_benchmark/plugins/experimental/src/data_loader/s3/s3.env')
+load_dotenv('/home/minio/dlio_benchmark/dlio_benchmark/plugins/experimental/src/data_loader/s3/s3.env')
 BUCKET_NAME = os.environ['BUCKET_NAME']
 TRAINING_PATH = os.environ['TRAINING_PATH']
 EVALUATIUON_PATH = os.environ['EVALUATION_PATH']
@@ -210,16 +211,16 @@ class S3IterDataset(IterableDataset):
         Get the indicies for this worker within the process.
         '''
         # Calculate the indecies for each worker within a rank.
-        if self.rank > -1: # If renak is greater than -1 then distributed training is being used or emulated.
+        if self.rank > -1: # If rank is greater than -1 then distributed training is being used or emulated.
             samples_per_rank = int(math.ceil(self.num_samples/self.comm_size)) 
             self.rank_start = self.rank * samples_per_rank
-            self.rank_end = (self.rank + 1) * samples_per_rank - 1
-            if self.rank_end > self.num_samples - 1:
-                self.rank_end = self.num_samples - 1
+            self.rank_end = (self.rank + 1) * samples_per_rank #- 1
+            if self.rank_end == (self.num_samples - 1):
+                self.rank_end = self.num_samples
 
         else: # rank 0 meaning that distributed training is not being used.
             self.rank_start = 0
-            self.rank_end = self.num_samples - 1
+            self.rank_end = self.num_samples
 
         # Indecies for this dataloader worker.
         worker_info = torch.utils.data.get_worker_info()
@@ -309,28 +310,28 @@ class S3TorchDataLoader(BaseDataLoader):
                                     persistent_workers=False,
                                     prefetch_factor=self._args.prefetch_size)
 
-    #@dlp.log
-    #def next(self):
-    #    super().next()
-    #    total = self._args.training_steps if self.dataset_type is DatasetType.TRAIN else self._args.eval_steps
-    #    logging.info(f"{utcnow()} Rank {self._args.my_rank} should read {total} batches")
-    #    for batch in self._dataloader:
-    #        yield batch
-
     @dlp.log
     def next(self):
         super().next()
         total = self._args.training_steps if self.dataset_type is DatasetType.TRAIN else self._args.eval_steps
-        self.logger.debug(f"{utcnow()} Rank {self._args.my_rank} should read {total} batches")
-        step = 1
-        # TODO: @hariharan-devarajan: change below line when we bump the dftracer version to 
-        #       `dlp.iter(self._dataset, name=self.next.__qualname__)`
-        for batch in dlp.iter(self._dataset):
-            dlp.update(step = step)
-            step += 1
+        logging.info(f"{utcnow()} Rank {self._args.my_rank} should read {total} batches")
+        for batch in self._dataloader:
             yield batch
-        self.epoch_number += 1
-        dlp.update(epoch=self.epoch_number)
+
+    #@dlp.log
+    #def next(self):
+    #    super().next()
+    #    total = self._args.training_steps if self.dataset_type is DatasetType.TRAIN else self._args.eval_steps
+    #    self.logger.debug(f"{utcnow()} Rank {self._args.my_rank} should read {total} batches")
+    #    step = 1
+    #    # TODO: @hariharan-devarajan: change below line when we bump the dftracer version to 
+    #    #       `dlp.iter(self._dataset, name=self.next.__qualname__)`
+    #    for batch in dlp.iter(self._dataloader):
+    #        dlp.update(step = step)
+    #        step += 1
+    #        yield batch
+    #    self.epoch_number += 1
+    #    dlp.update(epoch=self.epoch_number)
     
     @dlp.log
     def finalize(self):

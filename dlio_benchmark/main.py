@@ -346,6 +346,8 @@ class DLIOBenchmark(object):
             else:
                 block_step += 1
             overall_step += 1
+            # KLP added for debugging.
+            self.logger.debug(f"{utcnow()} Epoch {epoch} Step {overall_step}/{max_steps} completed.")
             if overall_step > max_steps or ((self.total_training_steps > 0) and (overall_step > self.total_training_steps)):
                 if self.args.my_rank == 0:
                     self.logger.info(f"{utcnow()} Maximum number of steps reached")
