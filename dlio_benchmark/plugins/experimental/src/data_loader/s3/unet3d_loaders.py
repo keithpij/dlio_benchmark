@@ -40,7 +40,7 @@ class UNET3DMap(Dataset):
         with np.load(bytes_io) as data:
             sample = data['x']
             label = data['y']
-            sample_tensor = torch.tensor(sample[0:2000, 0:2000,:], dtype=torch.uint8)
+            sample_tensor = torch.tensor(sample[0:10, 0:10,:], dtype=torch.uint8)
             label_tensor = torch.tensor(label, dtype=torch.int64)
 
         self.logger.info(f'{self.X[index]} retrieved in {time.perf_counter()-start}.')
@@ -112,9 +112,9 @@ class UNET3DIter(IterableDataset):
                 samples = data['x']
                 labels = data['y']
                 for i in range(labels.shape[0]):
-                    sample = samples[0:2000, 0:2000, i]
+                    sample = samples[0:10, 0:10, i]
                     label = labels[i]
-                    sample_tensor = torch.tensor(sample[0:2000, 0:2000], dtype=torch.uint8)
+                    sample_tensor = torch.tensor(sample, dtype=torch.uint8)
                     label_tensor = torch.tensor(label, dtype=torch.int64)
                     #yield_list.append((sample_tensor, label_tensor))
                     yield sample_tensor, label_tensor

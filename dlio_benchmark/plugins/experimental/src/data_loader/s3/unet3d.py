@@ -381,7 +381,7 @@ def main():
             'bucket_name': UNET3D_BUCKET_NAME,
             'checkpoint': False,
             'checkpoint_bucket': CHECKPOINT_BUCKET,
-            'computation_time': 0.636,
+            'computation_time': 0.323,
             'epochs': 2,
             'model_name': model_name,
             'num_workers': 4, #os.cpu_count(),   # Use the number of CPUs available on the system.
