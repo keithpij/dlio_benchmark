@@ -214,19 +214,24 @@ def _worker(worker_id: int, samples: Sequence[str], out_q) -> None:
     for object_path in samples:
         start = time.perf_counter()
         logger.info(f'Process {worker_id} retrieving {object_path}.')
-        data_bytes = du.get_object_from_minio(UNET3D_BUCKET_NAME, object_path)
-        io_time = time.perf_counter() - start
-        total_io_time += io_time
-        byte_size = len(data_bytes)
-        total_bytes += byte_size
-        object_bandwidth = ((byte_size/io_time) * 8) / 1e9 # Gbps
-        object_bandwidths.append(object_bandwidth)
-        bytes_io = BytesIO(data_bytes)
-        with np.load(bytes_io) as data:
-            sample = data['x']
-            label = data['y']
-            sample_tensor = torch.tensor(sample, dtype=torch.uint8)
-            label_tensor = torch.tensor(label, dtype=torch.int64)
+        try:
+            data_bytes = du.get_object_from_minio(UNET3D_BUCKET_NAME, object_path)
+            io_time = time.perf_counter() - start
+            total_io_time += io_time
+            byte_size = len(data_bytes)
+            total_bytes += byte_size
+            object_bandwidth = ((byte_size/io_time) * 8) / 1e9 # Gbps
+            object_bandwidths.append(object_bandwidth)
+            #bytes_io = BytesIO(data_bytes)
+            #with np.load(bytes_io) as data:
+            #    sample = data['x']
+            #    label = data['y']
+            #    sample_tensor = torch.tensor(sample, dtype=torch.uint8)
+            #    label_tensor = torch.tensor(label, dtype=torch.int64)
+
+        except Exception as err:
+            logger.error(f'Error occurred retrieving {object_path}. Error: {err}.')
+            #raise err
 
     out_q.put((worker_id, total_bytes, total_io_time, object_bandwidths))
 
