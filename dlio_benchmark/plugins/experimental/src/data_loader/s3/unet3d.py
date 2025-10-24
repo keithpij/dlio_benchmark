@@ -206,13 +206,14 @@ def _worker(worker_id: int, samples: Sequence[str], out_q) -> None:
     and reports elapsed time back via out_q as a tuple (idx, elapsed_seconds).
     '''
     # Create the logger.
-    du.create_logger(use_file=False)
+    logger = du.create_logger(use_file=False)
 
     object_bandwidths = []
     total_bytes = 0
     total_io_time = 0
     for object_path in samples:
         start = time.perf_counter()
+        logger.info(f'Process {worker_id} retrieving {object_path}.')
         data_bytes = du.get_object_from_minio(UNET3D_BUCKET_NAME, object_path)
         io_time = time.perf_counter() - start
         total_io_time += io_time
