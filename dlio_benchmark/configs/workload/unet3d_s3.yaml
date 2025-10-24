@@ -14,7 +14,7 @@ dataset:
   data_folder: data/unet3d/
   format: npz
   num_files_train: 168
-  num_samples_per_file: 7
+  num_samples_per_file: 14
   record_length_bytes: 146600628
   record_length_bytes_stdev: 68341808
   record_length_bytes_resize: 2097152
@@ -31,7 +31,7 @@ reader:
 
 train:
   epochs: 5
-  computation_time: 0.636
+  computation_time: 0.323 # H100 and H200
 
 checkpoint:
   checkpoint_folder: checkpoints/unet3d

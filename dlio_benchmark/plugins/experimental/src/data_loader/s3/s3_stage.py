@@ -71,7 +71,7 @@ def main():
     Main function that processes the arguments sent to this module via the command line.
     '''
     # Create the logger.
-    du.create_logger(use_file=True)
+    du.create_logger(use_file=False)
 
     parser = argparse.ArgumentParser(description='ML Command line interface.')
     parser.add_argument('-lb', '--list_buckets', help='List all buckets.', action='store_true')

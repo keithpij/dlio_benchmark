@@ -205,6 +205,9 @@ def _worker(worker_id: int, samples: Sequence[str], out_q) -> None:
     Worker run in a subprocess: loops through each character of each string
     and reports elapsed time back via out_q as a tuple (idx, elapsed_seconds).
     '''
+    # Create the logger.
+    du.create_logger(use_file=False)
+
     object_bandwidths = []
     total_bytes = 0
     total_io_time = 0
@@ -304,7 +307,7 @@ def main():
     Main function that processes the arguments sent to this module via the command line.
     '''
     # Create the logger.
-    du.create_logger(use_file=True)
+    du.create_logger(use_file=False)
 
     # Setup the command line options.
     parser = argparse.ArgumentParser(description='Unet3d Command line interface.')
