@@ -356,8 +356,8 @@ def main():
         for worker_id in sorted(results):
             r = results[worker_id]
             total_bytes += r[0]
-            print(f'Process {worker_id}: Bytes: {r[0]:.4f}s - IO time: {r[1]:.4f}s')
-        print(f'Total dataset size (in bytes) = {total_bytes / 1e9:.4f}')
+            print(f'Process {worker_id}: Bytes: {r[0]:.4f} - IO time: {r[1]:.4f}s')
+        print(f'Total dataset size: {total_bytes / 1e9:.4f} GB')
         print(f'Bandwidth: {((total_bytes/wall_clock_time) * 8) / 1e9:.4f} Gbps') # Gbps
         print(f'Number of objects: {len(object_list)}')
 
