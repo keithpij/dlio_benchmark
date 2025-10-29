@@ -261,13 +261,16 @@ def multi_process(object_list: List[str], num_workers: int) -> Dict[int, float]:
     #tasks = lists_of_strings[:8] + [[] for _ in range(max(0, 8 - len(lists_of_strings)))]
     tasks = []
     total_length = len(object_list)
-    objects_per_worker = (total_length // num_workers) + 1
+
+    # Need to add 1 to make sure objects at the end of the list do not get dropped.
+    objects_per_worker = (total_length // num_workers) + 1 
 
     for i in range(num_workers):
         start_index = i * objects_per_worker
         end_index = min(start_index + objects_per_worker, total_length) #(i+1)*objects_per_worker
         tasks.append(object_list[start_index:end_index])
-    logger.info(f'Tasks by worker: {tasks}.')
+
+    logger.debug(f'Tasks by worker: {tasks}.')
 
     q = Queue()
     procs = []
@@ -358,7 +361,7 @@ def main():
             print(f'Process {worker_id}: {r[0]/gb:.2f} GB - IO time: {r[1]:.2f} s')
         print(f'Total dataset size: {total_bytes / gb:.2f} GB')
         print(f'Bandwidth (Gbps): {((total_bytes/wall_clock_time) * 8) / gb:.2f} Gbps') # Gbps
-        print(f'Bandwidth (GB/s): {(total_bytes/wall_clock_time) / gb:.2f} Gbps') # GB/s
+        print(f'Bandwidth (GB/s): {(total_bytes/wall_clock_time) / gb:.2f} GB/s') # GB/s
         print(f'Number of objects: {len(object_list)}')
 
     if args.batch_test:
