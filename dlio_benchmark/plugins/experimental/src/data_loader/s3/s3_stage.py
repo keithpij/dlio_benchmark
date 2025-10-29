@@ -74,6 +74,7 @@ def main():
     du.create_logger(use_file=False)
 
     parser = argparse.ArgumentParser(description='ML Command line interface.')
+    parser.add_argument('-e', '--list_env_vars', help='List all buckets.', action='store_true')
     parser.add_argument('-lb', '--list_buckets', help='List all buckets.', action='store_true')
     parser.add_argument('-lo', '--list_objects', help='List all objects in the specified bucket.', action='store_true')
     parser.add_argument('-eb', '--empty_bucket', help='Remove all objects in the specified bucket.', action='store_true')
@@ -82,17 +83,30 @@ def main():
 
     # Set logging level.
     logging.getLogger().setLevel(logging.INFO)
-    
+
+    if args.list_env_vars:
+        for name, value in os.environ.items():
+            print(f'{name}: {value}')
+
     if args.empty_bucket:
         count = du.empty_bucket(BUCKET_NAME)
         print(f'Number of objects removed in {BUCKET_NAME}:', count)
+
     if args.list_buckets:
         bucket_list = du.get_bucket_list()
         print(bucket_list)
+
     if args.list_objects:
-        object_list = du.get_object_list(BUCKET_NAME, prefix='train/')
+        object_list = du.get_object_list(BUCKET_NAME, prefix='train/', verbose=True)
+        total_bytes = 0
+        mb = 1e6  # 1024*1024
+        gb = 1e9  # 1024*1024*1024
+        for obj in object_list:
+            print(f"{obj['object_name']}\t{obj['size']/(mb):.2f}MB")
+            total_bytes += obj['size']
         print(f'Number of objects in {BUCKET_NAME}:', len(object_list))
-        print(object_list[:10])
+        print(f'Total size (in GB) of objects in {BUCKET_NAME}: {total_bytes/(gb):.2f}GB')
+
     if args.load_bucket:
         put_folder(BUCKET_NAME, DATASET_FOLDER, 'train', 0)
 

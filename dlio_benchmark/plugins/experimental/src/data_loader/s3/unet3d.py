@@ -22,9 +22,10 @@ import unet3d_loaders as ul
 
 # Load the credentials and connection information.
 load_dotenv('s3.env')
-UNET3D_BUCKET_NAME = os.environ['UNET3D_BUCKET_NAME']
+BUCKET_NAME = os.environ['BUCKET_NAME']
 CHECKPOINT_BUCKET = os.environ['CHECKPOINT_BUCKET']
-#COMPUTATION_TIME = os.environ['COMPUTATION_TIME']
+COMPUTATION_TIME = os.environ['COMPUTATION_TIME']
+
 
 class TrainUNET3D(TrainingBase):
     '''
@@ -215,12 +216,12 @@ def _worker(worker_id: int, samples: Sequence[str], out_q) -> None:
         start = time.perf_counter()
         logger.info(f'Process {worker_id} retrieving {object_path}.')
         try:
-            data_bytes = du.get_object_from_minio(UNET3D_BUCKET_NAME, object_path)
+            data_bytes = du.get_object_from_minio(BUCKET_NAME, object_path)
             io_time = time.perf_counter() - start
             total_io_time += io_time
             byte_size = len(data_bytes)
             total_bytes += byte_size
-            object_bandwidth = ((byte_size/io_time) * 8) / 1e9 # Gbps
+            object_bandwidth = byte_size/io_time  #((byte_size/io_time) * 8) / 1e9 # Gbps
             object_bandwidths.append(object_bandwidth)
             #bytes_io = BytesIO(data_bytes)
             #with np.load(bytes_io) as data:
@@ -250,6 +251,8 @@ def multi_process(object_list: List[str], num_workers: int) -> Dict[int, float]:
     Returns:
       Dict mapping process index (0..7) -> elapsed seconds.
     '''
+    logger = du.get_logger()
+
     ctx = get_context('spawn')  # safe on macOS without requiring __main__ guard
     Queue = ctx.Queue
     Process = ctx.Process
@@ -258,10 +261,13 @@ def multi_process(object_list: List[str], num_workers: int) -> Dict[int, float]:
     #tasks = lists_of_strings[:8] + [[] for _ in range(max(0, 8 - len(lists_of_strings)))]
     tasks = []
     total_length = len(object_list)
-    objects_per_worker = total_length // num_workers
+    objects_per_worker = (total_length // num_workers) + 1
 
     for i in range(num_workers):
-        tasks.append(object_list[i*objects_per_worker:(i+1)*objects_per_worker])
+        start_index = i * objects_per_worker
+        end_index = min(start_index + objects_per_worker, total_length) #(i+1)*objects_per_worker
+        tasks.append(object_list[start_index:end_index])
+    logger.info(f'Tasks by worker: {tasks}.')
 
     q = Queue()
     procs = []
@@ -316,10 +322,7 @@ def main():
     du.create_logger(use_file=False)
 
     # Setup the command line options.
-    parser = argparse.ArgumentParser(description='Unet3d Command line interface.')
-    parser.add_argument('-lb', '--list_buckets', help='List all buckets.', action='store_true')
-    parser.add_argument('-lo', '--list_objects', help='List all objects in the specified bucket.')
-    parser.add_argument('-eb', '--empty_bucket', help='Remove all objects in the specified bucket.', action='store_true')
+    parser = argparse.ArgumentParser(description='Simulation Command line interface.')
     parser.add_argument('-train', '--train', help='Train the UNET3D model.', action='store_true')
     parser.add_argument('-lt', '--loader_type', help='Type of loader to use for loading training and test sets ' \
                         '(map, iter, s3map or s3iter).')
@@ -329,16 +332,6 @@ def main():
     parser.add_argument('-bt', '--batch_test', help='Batch test.', action='store_true')
 
     args = parser.parse_args()
-
-    if args.empty_bucket:
-        count = du.empty_bucket(UNET3D_BUCKET_NAME)
-        print(f'Number of objects removed in {args.empty_bucket}:', count)
-    if args.list_buckets:
-        bucket_list = du.get_bucket_list()
-        print(bucket_list)
-    if args.list_objects:
-        object_list = du.get_object_list(args.list_objects)
-        print(f'Number of objects in {args.list_objects}:', len(object_list))
 
     if args.single_process:
         total_bytes, total_io_time, object_bandwidths = single_process(args.single_process, 'train')
@@ -351,26 +344,28 @@ def main():
         print(f'Min object bandwidth (in Gbps) = {min(object_bandwidths):.4f} Gbps')
 
     if args.multi_process:
-        object_list = du.get_unet3d_list(UNET3D_BUCKET_NAME, 'train', smoke_test_count=0)
+        object_list = du.get_unet3d_list(BUCKET_NAME, 'train', smoke_test_count=0)
 
         wall_clock_time, objects_per_worker, results = multi_process(object_list, int(args.multi_process))
         print(f'Total Wall-clock Time: {wall_clock_time:.6f}s')
         print(f'Objects per worker: {objects_per_worker}')
 
+        gb = 1e9 # 1024*1024*1024  # 1e9
         total_bytes = 0
         for worker_id in sorted(results):
             r = results[worker_id]
             total_bytes += r[0]
-            print(f'Process {worker_id}: {r[0]/1e9:.2f} GB - IO time: {r[1]:.2f} s')
-        print(f'Total dataset size: {total_bytes / 1e9:.2f} GB')
-        print(f'Bandwidth: {((total_bytes/wall_clock_time) * 8) / 1e9:.2f} Gbps') # Gbps
+            print(f'Process {worker_id}: {r[0]/gb:.2f} GB - IO time: {r[1]:.2f} s')
+        print(f'Total dataset size: {total_bytes / gb:.2f} GB')
+        print(f'Bandwidth (Gbps): {((total_bytes/wall_clock_time) * 8) / gb:.2f} Gbps') # Gbps
+        print(f'Bandwidth (GB/s): {(total_bytes/wall_clock_time) / gb:.2f} Gbps') # GB/s
         print(f'Number of objects: {len(object_list)}')
 
     if args.batch_test:
         smoke_test_count = 0
         parameters = {
             'batch_size': 7,
-            'bucket_name': UNET3D_BUCKET_NAME,
+            'bucket_name': BUCKET_NAME,
             'checkpoint': False,
             'checkpoint_bucket': CHECKPOINT_BUCKET,
             'computation_time': 0.636,
@@ -387,7 +382,7 @@ def main():
         smoke_test_count = 0
         parameters = {
             'batch_size': 7,
-            'bucket_name': UNET3D_BUCKET_NAME,
+            'bucket_name': BUCKET_NAME,
             'checkpoint': False,
             'checkpoint_bucket': CHECKPOINT_BUCKET,
             'computation_time': 0.323,

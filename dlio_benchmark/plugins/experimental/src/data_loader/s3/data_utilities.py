@@ -612,7 +612,7 @@ def get_object_from_minio(bucket_name: str, object_name: str, client: Optional[U
     return response.data
 
 
-def get_object_list(bucket_name: str, prefix: Optional[Union[str, None]]=None) -> List[str]:
+def get_object_list(bucket_name: str, prefix: Optional[Union[str, None]]=None, verbose: bool=False) -> List[str]:
     '''
     Gets a list of objects from a bucket.
     '''
@@ -630,8 +630,10 @@ def get_object_list(bucket_name: str, prefix: Optional[Union[str, None]]=None) -
         object_list = []
         objects = client.list_objects(bucket_name, prefix=prefix, recursive=True)
         for obj in objects:
-            object_list.append(obj.object_name)
-            #object_list.append({'object_name': obj.object_name, 'size': obj.size})
+            if verbose:
+                object_list.append({'object_name': obj.object_name, 'size': obj.size})
+            else:
+                object_list.append(obj.object_name)
 
     except S3Error as s3_err:
         logger.error(f'S3 Error occurred: {s3_err}.')
