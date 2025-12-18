@@ -262,12 +262,17 @@ def multi_process(object_list: List[str], num_workers: int) -> Dict[int, float]:
     tasks = []
     total_length = len(object_list)
 
-    # Need to add 1 to make sure objects at the end of the list do not get dropped.
-    objects_per_worker = (total_length // num_workers) + 1 
+    # Need to manage the remainder so objects are not ommitted.
+    objects_per_worker = (total_length // num_workers)
+    remainder = total_length % num_workers
 
     for i in range(num_workers):
         start_index = i * objects_per_worker
-        end_index = min(start_index + objects_per_worker, total_length) #(i+1)*objects_per_worker
+        end_index = min(start_index + objects_per_worker, total_length)
+        if remainder:
+            end_index += 1
+            remainder -= 1
+
         tasks.append(object_list[start_index:end_index])
 
     logger.debug(f'Tasks by worker: {tasks}.')
@@ -317,6 +322,32 @@ def batch_test(parameters: Dict[str, Any], loader_type: str):
         print(f'Batch {batch_count} retrieved.')
 
 
+def get_memory_usage() -> dict:
+    '''
+    Return memory usage information for the current system.
+
+    Returns a dict with keys:
+      total, available, used, free, percent, cached, buffers, swap_total, swap_used
+    Sizes are in bytes, percent is a float (0-100).
+    '''
+    import psutil
+
+    if psutil:
+        vm = psutil.virtual_memory()
+        sw = psutil.swap_memory()
+        return {
+            "total": int(vm.total),
+            "available": int(getattr(vm, "available", vm.free)),
+            "used": int(vm.used),
+            "free": int(vm.free),
+            "percent": float(vm.percent),
+            "cached": int(getattr(vm, "cached", 0)),
+            "buffers": int(getattr(vm, "buffers", 0)),
+            "swap_total": int(sw.total),
+            "swap_used": int(sw.used),
+        }
+
+
 def main():
     '''
     Main function that processes the arguments sent to this module via the command line.
@@ -333,8 +364,21 @@ def main():
     parser.add_argument('-sp', '--single_process', help='Single process test.')
     parser.add_argument('-mp', '--multi_process', help='Multi-process test.')
     parser.add_argument('-bt', '--batch_test', help='Batch test.', action='store_true')
+    parser.add_argument('-mu', '--memory_usage', help='Memory usage.', action='store_true')
 
     args = parser.parse_args()
+
+    if args.memory_usage:
+        memory_usage = get_memory_usage()
+        print(f'Total: {memory_usage["total"]} bytes')
+        print(f'Available: {memory_usage["available"]} bytes')
+        print(f'Used: {memory_usage["used"]} bytes')
+        print(f'Free: {memory_usage["free"]} bytes')
+        print(f'Percent: {memory_usage["percent"]}%')
+        print(f'Cached: {memory_usage["cached"]} bytes')
+        print(f'Buffers: {memory_usage["buffers"]} bytes')
+        print(f'Swap Total: {memory_usage["swap_total"]} bytes')
+        print(f'Swap Used: {memory_usage["swap_used"]} bytes')  
 
     if args.single_process:
         total_bytes, total_io_time, object_bandwidths = single_process(args.single_process, 'train')
