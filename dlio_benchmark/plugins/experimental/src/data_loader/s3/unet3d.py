@@ -16,6 +16,7 @@ from torch import optim
 from torch.utils.data.dataloader import DataLoader
 
 import data_utilities as du
+import environment as env
 from training_base import TrainingBase
 import unet3d_loaders as ul
 
@@ -322,32 +323,6 @@ def batch_test(parameters: Dict[str, Any], loader_type: str):
         print(f'Batch {batch_count} retrieved.')
 
 
-def get_memory_usage() -> dict:
-    '''
-    Return memory usage information for the current system.
-
-    Returns a dict with keys:
-      total, available, used, free, percent, cached, buffers, swap_total, swap_used
-    Sizes are in bytes, percent is a float (0-100).
-    '''
-    import psutil
-
-    if psutil:
-        vm = psutil.virtual_memory()
-        sw = psutil.swap_memory()
-        return {
-            "total": int(vm.total),
-            "available": int(getattr(vm, "available", vm.free)),
-            "used": int(vm.used),
-            "free": int(vm.free),
-            "percent": float(vm.percent),
-            "cached": int(getattr(vm, "cached", 0)),
-            "buffers": int(getattr(vm, "buffers", 0)),
-            "swap_total": int(sw.total),
-            "swap_used": int(sw.used),
-        }
-
-
 def main():
     '''
     Main function that processes the arguments sent to this module via the command line.
@@ -369,7 +344,7 @@ def main():
     args = parser.parse_args()
 
     if args.memory_usage:
-        memory_usage = get_memory_usage()
+        memory_usage = env.get_memory_usage()
         print(f'Total: {memory_usage["total"]} bytes')
         print(f'Available: {memory_usage["available"]} bytes')
         print(f'Used: {memory_usage["used"]} bytes')
